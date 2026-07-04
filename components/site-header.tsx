@@ -1,6 +1,6 @@
 import Link from "next/link"
-import { PhoneCallIcon } from "@phosphor-icons/react/dist/ssr"
 
+import { ContactActions } from "@/components/contact-actions"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -20,10 +20,7 @@ type SiteHeaderProps = {
 export function SiteHeader({ className }: SiteHeaderProps) {
   return (
     <header
-      className={cn(
-        "sticky top-0 border-b bg-background/90 backdrop-blur supports-backdrop-filter:bg-background/70",
-        className
-      )}
+      className={cn("sticky top-0 z-40 border-b bg-background", className)}
     >
       <div className="mx-auto flex min-h-14 w-full max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/" className="font-heading text-base font-semibold">
@@ -41,14 +38,11 @@ export function SiteHeader({ className }: SiteHeaderProps) {
             </Button>
           ))}
         </nav>
-        <div className="ml-auto hidden sm:block">
-          <Button asChild size="sm">
-            <a href="tel:+84901234567">
-              <PhoneCallIcon data-icon="inline-start" />
-              Tư vấn nhanh
-            </a>
-          </Button>
-        </div>
+        <ContactActions
+          className="ml-auto hidden sm:flex"
+          label="Tư vấn nhanh"
+          triggerClassName="h-7"
+        />
       </div>
       <nav className="flex gap-1 overflow-x-auto px-4 py-2 sm:px-6 lg:hidden">
         {navItems.map((item) => (

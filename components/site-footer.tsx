@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { Separator } from "@/components/ui/separator"
+import { contactConfig } from "@/lib/contact"
 
 export function SiteFooter() {
   return (
@@ -30,11 +31,14 @@ export function SiteFooter() {
           </div>
           <div className="flex flex-col gap-2 text-sm">
             <p className="font-medium">Liên hệ</p>
-            <a href="tel:+84901234567" className="text-muted-foreground">
-              0901 234 567
+            <a href={contactConfig.phoneHref} className="text-muted-foreground">
+              {contactConfig.phone}
             </a>
-            <a href="mailto:hello@roovea.com" className="text-muted-foreground">
-              hello@roovea.com
+            <a
+              href={`mailto:${contactConfig.email}`}
+              className="text-muted-foreground"
+            >
+              {contactConfig.email}
             </a>
           </div>
         </div>

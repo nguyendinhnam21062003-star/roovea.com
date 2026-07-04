@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { DM_Sans, Geist_Mono, Roboto } from "next/font/google"
 
 import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
 const robotoHeading = Roboto({
@@ -42,8 +42,9 @@ export default function RootLayout({
         robotoHeading.variable
       )}
     >
-      <body>
-        <ThemeProvider>{children}</ThemeProvider>
+      <body suppressHydrationWarning>
+        {children}
+        <Toaster />
       </body>
     </html>
   )

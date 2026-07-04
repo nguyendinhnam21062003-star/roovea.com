@@ -1,19 +1,24 @@
+import type { ComponentType } from "react"
 import type { Metadata } from "next"
-import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import {
   ArrowRightIcon,
+  BathtubIcon,
   BedIcon,
-  CalendarBlankIcon,
+  CheckCircleIcon,
   HouseLineIcon,
+  InfoIcon,
   MapPinIcon,
-  ShareNetworkIcon,
+  ShieldCheckIcon,
   UsersThreeIcon,
-  VideoCameraIcon,
+  XCircleIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
 import { ContactActions } from "@/components/contact-actions"
+import { CopyableAddress } from "@/components/copyable-address"
+import { RoomGallery } from "@/components/room-gallery"
+import { RoomCard } from "@/components/room-explorer"
 import { SiteFooter } from "@/components/site-footer"
 import { SiteHeader } from "@/components/site-header"
 import { Badge } from "@/components/ui/badge"
@@ -26,29 +31,27 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { formatCurrency } from "@/lib/format"
 import {
-  getPublicRoomBySlug,
-  getPublicRooms,
-  type PublicRoom,
+  getAccommodationType,
+  getBathroomCount,
+  getRoomDiscount,
+  getRoomPolicies,
 } from "@/lib/rooms"
-import { formatCurrency, formatDate } from "@/lib/format"
-import { getPrimaryRoomMedia } from "@/lib/media"
+import { getPublicRoomBySlug, getPublicRooms } from "@/lib/rooms-data"
+import { cn } from "@/lib/utils"
 
 type RoomPageProps = {
   params: Promise<{ slug: string }>
 }
 
-export function generateStaticParams() {
-  return getPublicRooms().map((room) => ({
-    slug: room.slug,
-  }))
-}
+export const dynamic = "force-dynamic"
 
 export async function generateMetadata({
   params,
 }: RoomPageProps): Promise<Metadata> {
   const { slug } = await params
-  const room = getPublicRoomBySlug(slug)
+  const room = await getPublicRoomBySlug(slug)
 
   if (!room) {
     return {
@@ -64,52 +67,203 @@ export async function generateMetadata({
 
 export default async function RoomDetailPage({ params }: RoomPageProps) {
   const { slug } = await params
-  const room = getPublicRoomBySlug(slug)
+  const room = await getPublicRoomBySlug(slug)
 
   if (!room) {
     notFound()
   }
 
-  const image = getPrimaryRoomMedia(room.media)
   const videos = room.media.filter((item) => item.type === "video")
-  const images = room.media.filter((item) => item.type === "image")
+  const accommodationType = getAccommodationType(room)
+  const bathrooms = getBathroomCount(room)
+  const discount = getRoomDiscount(room)
+  const policies = getRoomPolicies(room)
+  const fullAddress = `${room.address}, ${room.locationLevel1}`
+  const restrictionPolicyItems = [
+    {
+      icon: policies.cancellable ? CheckCircleIcon : XCircleIcon,
+      label: "Hủy phòng",
+      text: policies.cancellable
+        ? "Có hủy phòng theo điều kiện"
+        : "Không hủy sát ngày",
+      tone: policies.cancellable ? "positive" : "negative",
+    },
+    {
+      icon: policies.smokingAllowed ? CheckCircleIcon : XCircleIcon,
+      label: "Hút thuốc",
+      text: policies.smokingAllowed
+        ? "Có khu vực hút thuốc"
+        : "Không hút thuốc trong phòng",
+      tone: policies.smokingAllowed ? "positive" : "negative",
+    },
+    {
+      icon: policies.petsAllowed ? CheckCircleIcon : XCircleIcon,
+      label: "Thú cưng",
+      text: policies.petsAllowed
+        ? "Có thể mang thú cưng sau khi xác nhận"
+        : "Không thú cưng",
+      tone: policies.petsAllowed ? "positive" : "negative",
+    },
+  ] as const
+  const checkTimePolicyItems = [
+    {
+      icon: InfoIcon,
+      label: "Nhận phòng",
+      text: `Từ ${policies.checkIn}`,
+      tone: "neutral",
+    },
+    {
+      icon: InfoIcon,
+      label: "Trả phòng",
+      text: `Trước ${policies.checkOut}`,
+      tone: "neutral",
+    },
+  ] as const
+  const otherPolicyText = policies.notes.join(" ")
+  const similarRooms = (await getPublicRooms())
+    .filter((item) => item.slug !== room.slug)
+    .slice(0, 3)
 
   return (
     <main className="min-h-svh bg-background">
       <SiteHeader />
-      <section className="border-b px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
-          <Button asChild variant="ghost" className="w-fit">
-            <Link href="/#tim-phong">
-              <ArrowRightIcon className="rotate-180" data-icon="inline-start" />
-              Quay lại danh sách
-            </Link>
-          </Button>
-          <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-            <div className="relative aspect-[16/10] min-h-80 overflow-hidden bg-muted">
-              <Image
-                src={image.src}
-                alt={image.alt}
-                fill
-                priority
-                className="object-cover"
-                sizes="(min-width: 1024px) 58vw, 100vw"
-              />
-            </div>
-            <RoomSummary room={room} />
-          </div>
+      <div className="border-b bg-muted/30 px-4 pt-5 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-2 pb-5 text-sm text-muted-foreground">
+          <Link href="/">Trang chủ</Link>
+          <ArrowRightIcon className="size-3" />
+          <Link href="/#tim-phong">Tìm phòng</Link>
+          <ArrowRightIcon className="size-3" />
+          <span className="truncate text-foreground">{room.name}</span>
+        </div>
+      </div>
+
+      <section className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <RoomGallery
+            media={room.media}
+            roomCode={room.code}
+            roomName={room.name}
+          />
+
+          <aside className="lg:sticky lg:top-20 lg:self-start">
+            <Card>
+              <CardHeader>
+                <CardDescription>
+                  Giá tham khảo · Mã phòng #{room.code}
+                </CardDescription>
+                <CardTitle>Thông tin đặt phòng</CardTitle>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-2xl font-semibold">
+                    {formatCurrency(room.referencePrice)}
+                  </span>
+                  {discount ? (
+                    <Badge variant="secondary">Giảm {discount.percent}%</Badge>
+                  ) : null}
+                </div>
+                <CardDescription>
+                  <span className="line-through">
+                    {formatCurrency(room.strikePrice)}
+                  </span>
+                  {discount ? (
+                    <span> · Tiết kiệm {formatCurrency(discount.saving)}</span>
+                  ) : null}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <BookingFact
+                    icon={UsersThreeIcon}
+                    label={`${room.guests} khách`}
+                  />
+                  <BookingFact icon={BedIcon} label={`${room.bedrooms} PN`} />
+                  <BookingFact icon={BathtubIcon} label={`${bathrooms} PT`} />
+                </div>
+                <ContactActions
+                  roomCode={room.code}
+                  triggerClassName="w-full"
+                />
+                <Separator />
+                <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+                  <span>Không cần thanh toán trước qua website.</span>
+                  <span>Roovea xác nhận lại giá cuối trước khi chốt.</span>
+                  <span>Hỗ trợ tư vấn trực tiếp theo mã phòng.</span>
+                </div>
+              </CardContent>
+            </Card>
+          </aside>
         </div>
       </section>
 
-      <section className="px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[1fr_360px]">
-          <div className="flex flex-col gap-6">
+      <section className="border-t px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto grid w-full max-w-7xl gap-8">
+          <div className="border-b pb-8">
+            <div className="flex max-w-4xl flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <Badge variant="outline">{room.locationLevel1}</Badge>
+                  <span>{room.locationLevel2}</span>
+                  <span>·</span>
+                  <span>Mã #{room.code}</span>
+                </div>
+                <h1 className="font-heading text-3xl font-semibold md:text-5xl">
+                  {room.name}
+                </h1>
+              </div>
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                <CopyableAddress address={fullAddress} />
+                <div className="flex flex-wrap gap-2 md:justify-end">
+                  {room.googleMapUrl ? (
+                    <Button asChild variant="outline" className="w-fit">
+                      <a
+                        href={room.googleMapUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <MapPinIcon data-icon="inline-start" />
+                        Mở Google Maps
+                      </a>
+                    </Button>
+                  ) : null}
+                  <ContactActions
+                    label="Liên hệ tư vấn"
+                    roomCode={room.code}
+                    variant="outline"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <DetailFact
+              icon={UsersThreeIcon}
+              title={`${room.guests} khách`}
+              text="Sức chứa"
+            />
+            <DetailFact
+              icon={BedIcon}
+              title={`${room.bedrooms} phòng ngủ`}
+              text="Không gian riêng"
+            />
+            <DetailFact
+              icon={BathtubIcon}
+              title={`${bathrooms} phòng tắm`}
+              text="Tiện nghi phòng"
+            />
+            <DetailFact
+              icon={HouseLineIcon}
+              title={accommodationType}
+              text="Loại hình lưu trú"
+            />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.82fr)]">
             <Card>
               <CardHeader>
-                <CardTitle>Mô tả phòng</CardTitle>
-                <CardDescription>
-                  Mã phòng {room.code} · Cập nhật {formatDate(room.updatedAt)}
-                </CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <InfoIcon className="size-4 text-primary" />
+                  Mô tả phòng
+                </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-5">
                 <p className="text-sm leading-7 text-muted-foreground">
@@ -122,93 +276,144 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
                     </Badge>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Tiện nghi</CardTitle>
-                <CardDescription>
-                  Các tiện ích chính được khai báo cho phòng này.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {room.amenities.map((item) => (
-                    <div key={item} className="bg-muted px-3 py-2 text-sm">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Hình ảnh và video</CardTitle>
-                <CardDescription>
-                  Tư liệu phòng phục vụ khách xem trước khi liên hệ.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {images.map((item) => (
-                    <div
-                      key={item.src}
-                      className="relative aspect-[4/3] overflow-hidden bg-muted"
-                    >
-                      <Image
-                        src={item.src}
-                        alt={item.alt}
-                        fill
-                        className="object-cover"
-                        sizes="(min-width: 640px) 50vw, 100vw"
-                      />
-                    </div>
-                  ))}
-                </div>
-                {videos.map((item) => (
-                  <div key={item.src} className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <VideoCameraIcon className="size-4" />
-                      Video phòng
-                    </div>
-                    <div className="aspect-video overflow-hidden bg-muted">
-                      <iframe
-                        src={item.src}
-                        title={item.alt}
-                        className="h-full w-full"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                      />
-                    </div>
+                <Separator />
+                <div className="flex flex-col gap-3">
+                  <h2 className="flex items-center gap-2 font-heading text-base font-semibold">
+                    <CheckCircleIcon className="size-4 text-primary" />
+                    Tiện nghi
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {room.amenities.map((item) => (
+                      <Badge key={item} variant="outline">
+                        <CheckCircleIcon data-icon="inline-start" />
+                        {item}
+                      </Badge>
+                    ))}
                   </div>
-                ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldCheckIcon className="size-4 text-primary" />
+                  Chính sách
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-5">
+                <div className="flex flex-wrap gap-2">
+                  {checkTimePolicyItems.map((item) => (
+                    <CheckTimeBadge
+                      key={item.label}
+                      label={item.label}
+                      text={item.text}
+                    />
+                  ))}
+                </div>
+                <Separator />
+                <div className="flex flex-col gap-3">
+                  <h2 className="text-sm font-semibold">Nội quy</h2>
+                  <ul className="grid gap-x-5 gap-y-2 sm:grid-cols-2">
+                    {restrictionPolicyItems.map((item) => (
+                      <PolicyRuleItem
+                        key={item.label}
+                        icon={item.icon}
+                        label={item.label}
+                        text={item.text}
+                        tone={item.tone}
+                      />
+                    ))}
+                  </ul>
+                </div>
+                {otherPolicyText ? (
+                  <>
+                    <Separator />
+                    <section className="flex min-w-0 flex-col gap-2">
+                      <h2 className="text-sm font-semibold">Chính sách khác</h2>
+                      <p className="text-sm leading-7 text-muted-foreground">
+                        {otherPolicyText}
+                      </p>
+                    </section>
+                  </>
+                ) : null}
               </CardContent>
             </Card>
           </div>
 
-          <aside className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
-            <Card>
-              <CardHeader>
-                <CardTitle>Liên hệ Roovea</CardTitle>
-                <CardDescription>
-                  Gửi mã phòng {room.code} để được kiểm tra lịch trống và giá
-                  cuối.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <ContactActions roomCode={room.code} className="flex-col" />
-                <Separator />
-                <Button asChild variant="outline">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vị trí lưu trú</CardTitle>
+              <CardDescription>{room.address}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div className="aspect-[16/7] min-h-72 overflow-hidden bg-muted">
+                <iframe
+                  title={`Bản đồ ${room.name}`}
+                  src={`https://www.google.com/maps?q=${encodeURIComponent(
+                    room.address
+                  )}&output=embed`}
+                  className="h-full w-full"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+              {room.googleMapUrl ? (
+                <Button asChild variant="outline" className="w-fit">
                   <a href={room.googleMapUrl} target="_blank" rel="noreferrer">
                     <MapPinIcon data-icon="inline-start" />
-                    Mở Google Map
+                    Xem trên Google Map
                   </a>
                 </Button>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          {videos.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Video phòng</CardTitle>
+                <CardDescription>
+                  Video nhúng được khai báo cho phòng.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                {videos.map((item) => (
+                  <div
+                    key={item.src}
+                    className="aspect-video overflow-hidden bg-muted"
+                  >
+                    <iframe
+                      src={item.src}
+                      title={item.alt}
+                      className="h-full w-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  </div>
+                ))}
               </CardContent>
             </Card>
-          </aside>
+          ) : null}
+
+          <section className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <Badge variant="secondary">Có thể bạn quan tâm</Badge>
+                <h2 className="mt-2 font-heading text-2xl font-semibold">
+                  Phòng tương tự
+                </h2>
+              </div>
+              <Button asChild variant="outline">
+                <Link href="/#tim-phong">Xem tất cả</Link>
+              </Button>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {similarRooms.map((item) => (
+                <RoomCard key={item.slug} room={item} />
+              ))}
+            </div>
+          </section>
         </div>
       </section>
       <SiteFooter />
@@ -216,77 +421,74 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
   )
 }
 
-function RoomSummary({ room }: { room: PublicRoom }) {
+function PolicyRuleItem({
+  icon: Icon,
+  label,
+  text,
+  tone,
+}: {
+  icon: ComponentType<{ className?: string }>
+  label: string
+  text: string
+  tone: "negative" | "neutral" | "positive"
+}) {
+  const toneClassName =
+    tone === "positive"
+      ? "text-primary"
+      : tone === "negative"
+        ? "text-destructive"
+        : "text-muted-foreground"
+
   return (
-    <div className="flex flex-col justify-between gap-6">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-2">
-          <Badge>#{room.code}</Badge>
-          <Badge variant="secondary">{room.locationLevel1}</Badge>
-        </div>
-        <div className="flex flex-col gap-2">
-          <h1 className="font-heading text-3xl font-semibold md:text-4xl">
-            {room.name}
-          </h1>
-          <div className="flex items-start gap-2 text-sm text-muted-foreground">
-            <MapPinIcon className="mt-0.5 size-4 shrink-0" />
-            <span>
-              {room.address}, {room.locationLevel2}, {room.locationLevel1}
-            </span>
-          </div>
-        </div>
-      </div>
+    <li className="grid min-w-0 grid-cols-[1rem_minmax(0,1fr)] gap-2 text-sm leading-6">
+      <Icon className={cn("mt-1 size-3.5 shrink-0", toneClassName)} />
+      <span className="min-w-0 break-words">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="text-muted-foreground"> · {text}</span>
+      </span>
+    </li>
+  )
+}
 
-      <div className="grid grid-cols-3 gap-2 text-xs">
-        <SummaryFact icon={BedIcon} label={`${room.bedrooms} phòng ngủ`} />
-        <SummaryFact icon={UsersThreeIcon} label={`${room.guests} khách`} />
-        <SummaryFact icon={HouseLineIcon} label={room.area} />
-      </div>
+function CheckTimeBadge({ label, text }: { label: string; text: string }) {
+  return (
+    <Badge variant="secondary" className="h-7 gap-1.5 px-2.5">
+      <InfoIcon data-icon="inline-start" />
+      {label}
+      <span className="font-normal text-muted-foreground">{text}</span>
+    </Badge>
+  )
+}
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-baseline gap-3">
-          <p className="text-2xl font-semibold">
-            {formatCurrency(room.referencePrice)}
-          </p>
-          <p className="text-sm text-muted-foreground line-through">
-            {formatCurrency(room.strikePrice)}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <CalendarBlankIcon className="size-4" />
-          Cập nhật {formatDate(room.updatedAt)}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Button asChild>
-          <a href={`/#lien-he`}>
-            <ShareNetworkIcon data-icon="inline-start" />
-            Liên hệ tư vấn
-          </a>
-        </Button>
-        <Button asChild variant="outline">
-          <a href={room.googleMapUrl} target="_blank" rel="noreferrer">
-            <MapPinIcon data-icon="inline-start" />
-            Xem bản đồ
-          </a>
-        </Button>
-      </div>
+function BookingFact({
+  icon: Icon,
+  label,
+}: {
+  icon: ComponentType<{ className?: string }>
+  label: string
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-2 border bg-muted/30 p-2">
+      <Icon className="size-4 text-muted-foreground" />
+      <span className="truncate">{label}</span>
     </div>
   )
 }
 
-function SummaryFact({
+function DetailFact({
   icon: Icon,
-  label,
+  title,
+  text,
 }: {
-  icon: typeof BedIcon
-  label: string
+  icon: ComponentType<{ className?: string }>
+  title: string
+  text: string
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-2 bg-muted px-3 py-3">
-      <Icon className="size-4 text-muted-foreground" />
-      <span className="truncate">{label}</span>
+    <div className="flex min-w-0 flex-col gap-2 border bg-card p-3">
+      <Icon className="size-4 text-primary" />
+      <strong className="truncate text-sm">{title}</strong>
+      <span className="truncate text-xs text-muted-foreground">{text}</span>
     </div>
   )
 }

@@ -1,18 +1,22 @@
 "use client"
 
+import type { ComponentType, Dispatch, FormEvent, SetStateAction } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowRightIcon,
+  BathtubIcon,
   BedIcon,
-  CalendarBlankIcon,
+  CaretDownIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  CaretUpIcon,
   HouseLineIcon,
   MagnifyingGlassIcon,
   MapPinIcon,
   SlidersHorizontalIcon,
   StarIcon,
-  TagIcon,
   UsersThreeIcon,
   XIcon,
 } from "@phosphor-icons/react"
@@ -28,6 +32,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ContactActions, ContactDrawer } from "@/components/contact-actions"
+import { CopyableAddress } from "@/components/copyable-address"
 import {
   Drawer,
   DrawerClose,
@@ -45,7 +52,15 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 import {
   InputGroup,
   InputGroupAddon,
@@ -59,112 +74,453 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { formatCurrency, formatDate } from "@/lib/format"
+import { Slider } from "@/components/ui/slider"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { formatCurrency } from "@/lib/format"
 import { getPrimaryRoomMedia } from "@/lib/media"
-import { type PublicRoom } from "@/lib/rooms"
+import {
+  getAccommodationType,
+  getBathroomCount,
+  type PublicRoom,
+} from "@/lib/rooms"
+import { cn } from "@/lib/utils"
 
 type RoomExplorerProps = {
   rooms: PublicRoom[]
 }
 
-type BudgetFilter = "all" | "under-1500000" | "1500000-3000000" | "over-3000000"
+type SortOption = "popular" | "price-asc" | "price-desc" | "newest"
 
-const budgetLabels: Record<BudgetFilter, string> = {
-  all: "Mọi mức giá",
-  "under-1500000": "Dưới 1.5 triệu",
-  "1500000-3000000": "1.5 - 3 triệu",
-  "over-3000000": "Trên 3 triệu",
-}
+const guestOptions = Array.from({ length: 99 }, (_, index) => String(index + 1))
+const initialVisibleRoomCount = 10
+const loadMoreRoomCount = 6
+const priceRangeBounds: [number, number] = [0, 8000000]
 
-function matchesBudget(room: PublicRoom, budget: BudgetFilter) {
-  if (budget === "under-1500000") {
-    return room.referencePrice < 1500000
-  }
+const typeOptions = [
+  { label: "Nhà nguyên căn", value: "Nhà nguyên căn" },
+  { label: "Khách sạn", value: "Khách sạn" },
+  { label: "Nhà nghỉ", value: "Nhà nghỉ" },
+  { label: "Chung cư", value: "Chung cư" },
+  { label: "Du thuyền", value: "Du thuyền" },
+  { label: "Căn hộ", value: "Căn hộ" },
+  { label: "Bungalow", value: "Bungalow" },
+  { label: "Homestay", value: "Homestay" },
+]
 
-  if (budget === "1500000-3000000") {
-    return room.referencePrice >= 1500000 && room.referencePrice <= 3000000
-  }
+const provinceOptions = [
+  { label: "TP.HCM", value: "TP. Hồ Chí Minh" },
+  { label: "Hà Nội", value: "Hà Nội" },
+  { label: "Đà Nẵng", value: "Đà Nẵng" },
+  { label: "Quảng Nam", value: "Quảng Nam" },
+  { label: "Lâm Đồng", value: "Lâm Đồng" },
+  { label: "Kiên Giang", value: "Kiên Giang" },
+  { label: "Quảng Ninh", value: "Quảng Ninh" },
+  { label: "Bà Rịa - Vũng Tàu", value: "Bà Rịa - Vũng Tàu" },
+  { label: "Thừa Thiên Huế", value: "Thừa Thiên Huế" },
+]
 
-  if (budget === "over-3000000") {
-    return room.referencePrice > 3000000
-  }
+const featuredAreaOptions = [
+  { label: "Hạ Long", value: "Hạ Long" },
+  { label: "Vũng Tàu", value: "Vũng Tàu" },
+  { label: "Hội An", value: "Hội An" },
+  { label: "Huế", value: "Huế" },
+  { label: "Sơn Trà", value: "Sơn Trà" },
+  { label: "Đà Lạt", value: "Đà Lạt" },
+  { label: "Phú Quốc", value: "Phú Quốc" },
+  { label: "Quận 1", value: "Quận 1" },
+]
 
-  return true
+function getRoomScore(room: PublicRoom) {
+  return room.featured ? "4.9" : "4.7"
 }
 
 export function RoomExplorer({ rooms }: RoomExplorerProps) {
   const [query, setQuery] = useState("")
-  const [location, setLocation] = useState("all")
-  const [budget, setBudget] = useState<BudgetFilter>("all")
+  const [heroDestination, setHeroDestination] = useState("")
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
+  const [selectedProvinces, setSelectedProvinces] = useState<string[]>([])
+  const [selectedFeaturedAreas, setSelectedFeaturedAreas] = useState<string[]>(
+    []
+  )
+  const [priceRange, setPriceRange] =
+    useState<[number, number]>(priceRangeBounds)
+  const [guests, setGuests] = useState("1")
+  const [sort, setSort] = useState<SortOption>("popular")
+  const [visibleRoomState, setVisibleRoomState] = useState({
+    count: initialVisibleRoomCount,
+    key: "",
+  })
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
   const [selectedRoom, setSelectedRoom] = useState<PublicRoom | null>(null)
+  const [featuredCanScrollPrev, setFeaturedCanScrollPrev] = useState(false)
+  const [featuredCanScrollNext, setFeaturedCanScrollNext] = useState(false)
+  const featuredScrollRef = useRef<HTMLDivElement>(null)
 
+  const heroImage = getPrimaryRoomMedia(rooms[0]?.media ?? [])
   const featuredRooms = useMemo(
-    () => rooms.filter((room) => room.featured).slice(0, 3),
+    () => rooms.filter((room) => room.featured).slice(0, 6),
     [rooms]
   )
-
-  const locations = useMemo(
-    () => Array.from(new Set(rooms.map((room) => room.locationLevel1))),
-    [rooms]
-  )
-
   const filteredRooms = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
+    const queryTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
 
-    return rooms.filter((room) => {
-      const searchable = [
-        room.code,
-        room.name,
-        room.locationLevel1,
-        room.locationLevel2,
-        room.address,
-      ]
-        .join(" ")
-        .toLowerCase()
+    return rooms
+      .filter((room) => {
+        const searchable = [
+          room.code,
+          room.name,
+          room.locationLevel1,
+          room.locationLevel2,
+          room.address,
+          room.description,
+          ...room.highlights,
+        ]
+          .join(" ")
+          .toLowerCase()
 
-      const queryMatched =
-        normalizedQuery.length === 0 || searchable.includes(normalizedQuery)
-      const locationMatched =
-        location === "all" || room.locationLevel1 === location
+        const queryMatched =
+          queryTokens.length === 0 ||
+          queryTokens.every((token) => searchable.includes(token))
+        const typeMatched =
+          selectedTypes.length === 0 ||
+          selectedTypes.includes(getAccommodationType(room))
+        const provinceMatched =
+          selectedProvinces.length === 0 ||
+          selectedProvinces.includes(room.locationLevel1)
+        const featuredAreaMatched =
+          selectedFeaturedAreas.length === 0 ||
+          selectedFeaturedAreas.includes(room.locationLevel2)
+        const priceMatched =
+          room.referencePrice >= priceRange[0] &&
+          room.referencePrice <= priceRange[1]
+        const guestMatched = room.guests >= Number(guests || 1)
 
-      return queryMatched && locationMatched && matchesBudget(room, budget)
-    })
-  }, [budget, location, query, rooms])
+        return (
+          queryMatched &&
+          typeMatched &&
+          provinceMatched &&
+          featuredAreaMatched &&
+          priceMatched &&
+          guestMatched
+        )
+      })
+      .sort((first, second) => {
+        if (sort === "price-asc") {
+          return first.referencePrice - second.referencePrice
+        }
 
-  function resetFilters() {
+        if (sort === "price-desc") {
+          return second.referencePrice - first.referencePrice
+        }
+
+        if (sort === "newest") {
+          return (
+            new Date(second.updatedAt).getTime() -
+            new Date(first.updatedAt).getTime()
+          )
+        }
+
+        return Number(second.featured) - Number(first.featured)
+      })
+  }, [
+    guests,
+    priceRange,
+    query,
+    rooms,
+    selectedFeaturedAreas,
+    selectedProvinces,
+    selectedTypes,
+    sort,
+  ])
+
+  const filterKey = useMemo(
+    () =>
+      [
+        query,
+        guests,
+        sort,
+        priceRange.join("-"),
+        selectedTypes.join(","),
+        selectedProvinces.join(","),
+        selectedFeaturedAreas.join(","),
+      ].join("|"),
+    [
+      guests,
+      priceRange,
+      query,
+      selectedFeaturedAreas,
+      selectedProvinces,
+      selectedTypes,
+      sort,
+    ]
+  )
+  const visibleRoomCount =
+    visibleRoomState.key === filterKey
+      ? visibleRoomState.count
+      : initialVisibleRoomCount
+
+  const activeFilters = [
+    query ? { key: "query", label: query } : null,
+    ...selectedTypes.map((value) => ({
+      key: `type:${value}`,
+      label: value,
+    })),
+    ...selectedProvinces.map((value) => ({
+      key: `province:${value}`,
+      label:
+        provinceOptions.find((option) => option.value === value)?.label ??
+        value,
+    })),
+    ...selectedFeaturedAreas.map((value) => ({
+      key: `area:${value}`,
+      label: value,
+    })),
+    priceRange[0] !== priceRangeBounds[0] ||
+    priceRange[1] !== priceRangeBounds[1]
+      ? {
+          key: "price",
+          label: `${formatCurrency(priceRange[0])} - ${formatCurrency(
+            priceRange[1]
+          )}`,
+        }
+      : null,
+    Number(guests) > 1 ? { key: "guests", label: `${guests} khách` } : null,
+  ].filter(Boolean) as Array<{ key: string; label: string }>
+
+  const visibleRooms = filteredRooms.slice(0, visibleRoomCount)
+  const remainingRoomCount = Math.max(
+    0,
+    filteredRooms.length - visibleRooms.length
+  )
+
+  function clearAllFilters() {
     setQuery("")
-    setLocation("all")
-    setBudget("all")
+    setHeroDestination("")
+    setSelectedTypes([])
+    setSelectedProvinces([])
+    setSelectedFeaturedAreas([])
+    setPriceRange(priceRangeBounds)
+    setGuests("1")
+    setSort("popular")
   }
+
+  function removeFilter(key: string) {
+    if (key === "query") {
+      setQuery("")
+      setHeroDestination("")
+    }
+
+    if (key.startsWith("type:")) {
+      setSelectedTypes((current) =>
+        current.filter((value) => value !== key.replace("type:", ""))
+      )
+    }
+
+    if (key.startsWith("province:")) {
+      setSelectedProvinces((current) =>
+        current.filter((value) => value !== key.replace("province:", ""))
+      )
+    }
+
+    if (key.startsWith("area:")) {
+      setSelectedFeaturedAreas((current) =>
+        current.filter((value) => value !== key.replace("area:", ""))
+      )
+    }
+
+    if (key === "price") {
+      setPriceRange(priceRangeBounds)
+    }
+
+    if (key === "guests") {
+      setGuests("1")
+    }
+  }
+
+  function toggleFilterValue(
+    value: string,
+    setter: Dispatch<SetStateAction<string[]>>
+  ) {
+    setter((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+    )
+  }
+
+  function submitHeroSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setQuery(heroDestination.trim())
+    document
+      .getElementById("tim-phong")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
+  const updateFeaturedControls = useCallback(() => {
+    const element = featuredScrollRef.current
+
+    if (!element) {
+      setFeaturedCanScrollPrev(false)
+      setFeaturedCanScrollNext(false)
+      return
+    }
+
+    setFeaturedCanScrollPrev(element.scrollLeft > 0)
+    setFeaturedCanScrollNext(
+      element.scrollLeft + element.clientWidth < element.scrollWidth - 1
+    )
+  }, [])
+
+  function scrollFeatured(offset: number) {
+    featuredScrollRef.current?.scrollBy({ left: offset, behavior: "smooth" })
+    window.setTimeout(updateFeaturedControls, 240)
+  }
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(updateFeaturedControls)
+    window.addEventListener("resize", updateFeaturedControls)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      window.removeEventListener("resize", updateFeaturedControls)
+    }
+  }, [featuredRooms, updateFeaturedControls])
 
   return (
     <>
-      <section className="border-t bg-background px-4 py-12 sm:px-6 lg:px-8">
+      <section className="relative border-b bg-muted">
+        <Image
+          src={heroImage.src}
+          alt={heroImage.alt}
+          fill
+          priority
+          className="pointer-events-none object-cover"
+          sizes="100vw"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/95 via-background/72 to-background/20" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-background/20" />
+        <div className="relative mx-auto flex min-h-[680px] w-full max-w-7xl flex-col justify-center gap-10 px-4 pt-24 pb-10 sm:px-6 lg:min-h-[700px] lg:px-8">
+          <div className="flex max-w-3xl flex-col gap-6">
+            <Badge variant="secondary" className="w-fit">
+              Chỗ ở được chọn lọc
+            </Badge>
+            <div className="flex flex-col gap-4">
+              <h1 className="font-heading text-5xl leading-tight font-semibold sm:text-6xl lg:text-7xl">
+                Roovea.com
+                <span className="block text-primary">Tìm chỗ ở lý tưởng</span>
+              </h1>
+              <p className="max-w-2xl text-base leading-7 font-medium text-foreground sm:text-lg">
+                Khám phá phòng, homestay, căn hộ và villa phù hợp với mã phòng
+                rõ ràng, thông tin dễ kiểm tra và liên hệ tư vấn nhanh.
+              </p>
+            </div>
+            <div className="grid max-w-2xl grid-cols-3 gap-2 text-xs sm:text-sm">
+              <HeroMetric value={`${rooms.length}+`} label="phòng mẫu" />
+              <HeroMetric value="5 chữ số" label="mã tìm nhanh" />
+              <HeroMetric value="1 link" label="share chi tiết" />
+            </div>
+          </div>
+
+          <form
+            className="w-full border bg-card/95 p-3 shadow-xl backdrop-blur"
+            onSubmit={submitHeroSearch}
+          >
+            <FieldGroup className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(150px,0.65fr)_minmax(150px,0.65fr)_auto] md:items-end">
+              <Field>
+                <FieldLabel htmlFor="hero-destination">Điểm đến</FieldLabel>
+                <InputGroup>
+                  <InputGroupInput
+                    id="hero-destination"
+                    value={heroDestination}
+                    onChange={(event) => setHeroDestination(event.target.value)}
+                    placeholder="Bạn muốn đi đâu?"
+                  />
+                  <InputGroupAddon>
+                    <MapPinIcon />
+                  </InputGroupAddon>
+                </InputGroup>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="hero-guests">Số khách</FieldLabel>
+                <Select value={guests} onValueChange={setGuests}>
+                  <SelectTrigger id="hero-guests" className="w-full">
+                    <SelectValue placeholder="Số khách" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="max-h-72">
+                    <SelectGroup>
+                      {guestOptions.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value} khách
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="hero-check-in">Ngày đi</FieldLabel>
+                <Input id="hero-check-in" type="date" />
+              </Field>
+              <Button type="submit" className="h-10 md:h-full">
+                <MagnifyingGlassIcon data-icon="inline-start" />
+                Tìm phòng
+              </Button>
+            </FieldGroup>
+          </form>
+        </div>
+      </section>
+
+      <section className="bg-background px-4 py-12 sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="flex max-w-2xl flex-col gap-2">
               <Badge variant="secondary" className="w-fit">
-                Phòng nổi bật
+                Gợi ý nổi bật
               </Badge>
               <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-                Lựa chọn đang được Roovea ưu tiên tư vấn
+                Chỗ ở được quan tâm nhiều
               </h2>
+              <p className="text-sm text-muted-foreground">
+                Dạng slider ngang giống Roovia để lướt nhanh các lựa chọn đáng
+                chú ý.
+              </p>
             </div>
-            <Button asChild variant="outline">
-              <Link href="#tim-phong">
-                Xem thêm
-                <ArrowRightIcon data-icon="inline-end" />
-              </Link>
-            </Button>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div
+            ref={featuredScrollRef}
+            onScroll={updateFeaturedControls}
+            className="grid snap-x [scrollbar-width:none] auto-cols-[minmax(280px,380px)] grid-flow-col gap-4 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden"
+          >
             {featuredRooms.map((room) => (
               <RoomCard
                 key={room.slug}
                 room={room}
                 onQuickView={() => setSelectedRoom(room)}
+                showTypePrefix={false}
               />
             ))}
+          </div>
+          <div className="flex justify-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Xem phòng trước"
+              disabled={!featuredCanScrollPrev}
+              onClick={() => scrollFeatured(-360)}
+            >
+              <CaretLeftIcon />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Xem phòng tiếp theo"
+              disabled={!featuredCanScrollNext}
+              onClick={() => scrollFeatured(360)}
+            >
+              <CaretRightIcon />
+            </Button>
           </div>
         </div>
       </section>
@@ -174,296 +530,697 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
         className="border-t bg-muted/30 px-4 py-12 sm:px-6 lg:px-8"
       >
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-          <div className="flex max-w-3xl flex-col gap-2">
-            <Badge variant="secondary" className="w-fit">
-              Tìm phòng
-            </Badge>
-            <h2 className="font-heading text-2xl font-semibold md:text-3xl">
-              Danh sách phòng phù hợp cho chuyến đi tiếp theo
-            </h2>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="flex max-w-3xl flex-col gap-2">
+              <Badge variant="secondary" className="w-fit">
+                Tìm theo nhu cầu
+              </Badge>
+              <h2 className="font-heading text-2xl font-semibold md:text-3xl">
+                Chọn phòng phù hợp với khách
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Bố cục listing lấy nhịp từ Roovia: filter sidebar, danh sách
+                chính và panel hỗ trợ bên phải.
+              </p>
+            </div>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Bộ lọc phòng</CardTitle>
-              <CardDescription>
-                Tìm theo tên, mã phòng 5 chữ số, tỉnh thành hoặc khu vực.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FieldGroup className="grid gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_auto] md:items-end">
-                <Field>
-                  <FieldLabel htmlFor="room-search">Thanh tìm kiếm</FieldLabel>
+          <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[250px_minmax(0,1fr)_230px]">
+            <aside className="hidden lg:block">
+              <div className="sticky top-20">
+                <FilterPanel
+                  guests={guests}
+                  onClear={clearAllFilters}
+                  onGuestsChange={setGuests}
+                  onPriceRangeChange={setPriceRange}
+                  onFeaturedAreaToggle={(value) =>
+                    toggleFilterValue(value, setSelectedFeaturedAreas)
+                  }
+                  onProvinceToggle={(value) =>
+                    toggleFilterValue(value, setSelectedProvinces)
+                  }
+                  onTypeToggle={(value) =>
+                    toggleFilterValue(value, setSelectedTypes)
+                  }
+                  priceRange={priceRange}
+                  selectedFeaturedAreas={selectedFeaturedAreas}
+                  selectedProvinces={selectedProvinces}
+                  selectedTypes={selectedTypes}
+                />
+              </div>
+            </aside>
+
+            <div className="min-w-0">
+              <Card className="mb-4 bg-card/95 shadow-sm backdrop-blur md:sticky md:top-20 md:z-20 lg:top-16">
+                <CardContent className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                   <InputGroup>
                     <InputGroupInput
-                      id="room-search"
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
-                      placeholder="VD: 48219, Đà Nẵng, villa..."
+                      placeholder="Tìm theo tên phòng, mã phòng hoặc địa điểm"
                     />
                     <InputGroupAddon>
                       <MagnifyingGlassIcon />
                     </InputGroupAddon>
                   </InputGroup>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="location-filter">
-                    Tỉnh/thành phố
-                  </FieldLabel>
-                  <Select value={location} onValueChange={setLocation}>
-                    <SelectTrigger id="location-filter" className="w-full">
-                      <SelectValue placeholder="Tất cả vị trí" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="all">Tất cả vị trí</SelectItem>
-                        {locations.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            {item}
+                  <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="lg:hidden"
+                      onClick={() => setFilterDrawerOpen(true)}
+                    >
+                      <SlidersHorizontalIcon data-icon="inline-start" />
+                      Bộ lọc
+                    </Button>
+                    <Badge variant="outline">
+                      {filteredRooms.length} kết quả
+                    </Badge>
+                    <Select
+                      value={sort}
+                      onValueChange={(value) => setSort(value as SortOption)}
+                    >
+                      <SelectTrigger className="w-[170px]">
+                        <SelectValue placeholder="Sắp xếp" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="popular">Phổ biến nhất</SelectItem>
+                          <SelectItem value="newest">Mới cập nhật</SelectItem>
+                          <SelectItem value="price-asc">
+                            Giá thấp đến cao
                           </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="budget-filter">Mức giá</FieldLabel>
-                  <Select
-                    value={budget}
-                    onValueChange={(value) => setBudget(value as BudgetFilter)}
-                  >
-                    <SelectTrigger id="budget-filter" className="w-full">
-                      <SelectValue placeholder="Mọi mức giá" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {Object.entries(budgetLabels).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
+                          <SelectItem value="price-desc">
+                            Giá cao đến thấp
                           </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Button type="button" variant="outline" onClick={resetFilters}>
-                  <XIcon data-icon="inline-start" />
-                  Xóa lọc
-                </Button>
-              </FieldGroup>
-            </CardContent>
-            <CardFooter className="justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <SlidersHorizontalIcon className="size-4" />
-                {filteredRooms.length} phòng phù hợp
-              </div>
-              <Badge variant="outline">{budgetLabels[budget]}</Badge>
-            </CardFooter>
-          </Card>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+                {activeFilters.length > 0 ? (
+                  <CardFooter className="flex-wrap gap-2">
+                    {activeFilters.map((filter) => (
+                      <Button
+                        key={filter.key}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeFilter(filter.key)}
+                      >
+                        {filter.label}
+                        <XIcon data-icon="inline-end" />
+                      </Button>
+                    ))}
+                  </CardFooter>
+                ) : null}
+              </Card>
 
-          {filteredRooms.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filteredRooms.map((room) => (
-                <RoomCard
-                  key={room.slug}
-                  room={room}
-                  onQuickView={() => setSelectedRoom(room)}
-                />
-              ))}
+              {filteredRooms.length > 0 ? (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {visibleRooms.map((room) => (
+                      <RoomCard
+                        key={room.slug}
+                        room={room}
+                        onQuickView={() => setSelectedRoom(room)}
+                      />
+                    ))}
+                  </div>
+                  {remainingRoomCount > 0 ? (
+                    <div className="mt-6 flex justify-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          setVisibleRoomState({
+                            count: visibleRoomCount + loadMoreRoomCount,
+                            key: filterKey,
+                          })
+                        }
+                      >
+                        Xem thêm | Còn {remainingRoomCount} kết quả
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="mt-6 text-center text-sm text-muted-foreground">
+                      Đã hiển thị toàn bộ kết quả phù hợp.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <Empty className="border bg-card">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MagnifyingGlassIcon />
+                    </EmptyMedia>
+                    <EmptyTitle>Chưa có phòng phù hợp</EmptyTitle>
+                    <EmptyDescription>Hãy thử bỏ bớt bộ lọc.</EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent className="max-w-md">
+                    <p className="text-muted-foreground">
+                      Hoặc liên hệ trực tiếp với Roovea để được tư vấn lựa chọn
+                      phù hợp.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={clearAllFilters}
+                    >
+                      Xóa bộ lọc
+                    </Button>
+                    <ContactDrawer label="Liên hệ với Roovea">
+                      <Button type="button">Liên hệ với Roovea</Button>
+                    </ContactDrawer>
+                  </EmptyContent>
+                </Empty>
+              )}
             </div>
-          ) : (
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <MagnifyingGlassIcon />
-                </EmptyMedia>
-                <EmptyTitle>Chưa có phòng phù hợp</EmptyTitle>
-                <EmptyDescription>
-                  Hãy thử bỏ bớt bộ lọc hoặc liên hệ Roovea để được tư vấn trực
-                  tiếp.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button type="button" variant="outline" onClick={resetFilters}>
-                  Xóa bộ lọc
-                </Button>
-              </EmptyContent>
-            </Empty>
-          )}
+
+            <aside className="hidden xl:block">
+              <div className="sticky top-20 flex flex-col gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Vị trí quảng cáo</CardTitle>
+                    <CardDescription>
+                      Banner sẽ được đặt tại đây.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex min-h-64 items-center justify-center border border-dashed bg-muted/30 text-sm text-muted-foreground">
+                      Banner quảng cáo
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </aside>
+          </div>
         </div>
       </section>
 
-      <Drawer
-        open={Boolean(selectedRoom)}
+      <Drawer open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Bộ lọc phòng</DrawerTitle>
+            <DrawerDescription>
+              Lọc nhanh theo khu vực, số khách và khoảng giá.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4">
+            <FilterPanel
+              contentViewportClassName="max-h-[58vh]"
+              guests={guests}
+              onClear={clearAllFilters}
+              onGuestsChange={setGuests}
+              onPriceRangeChange={setPriceRange}
+              onFeaturedAreaToggle={(value) =>
+                toggleFilterValue(value, setSelectedFeaturedAreas)
+              }
+              onProvinceToggle={(value) =>
+                toggleFilterValue(value, setSelectedProvinces)
+              }
+              onTypeToggle={(value) =>
+                toggleFilterValue(value, setSelectedTypes)
+              }
+              priceRange={priceRange}
+              selectedFeaturedAreas={selectedFeaturedAreas}
+              selectedProvinces={selectedProvinces}
+              selectedTypes={selectedTypes}
+            />
+          </div>
+          <DrawerFooter>
+            <DrawerClose asChild>
+              <Button>Áp dụng</Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+
+      <RoomQuickView
+        room={selectedRoom}
         onOpenChange={(open) => {
           if (!open) {
             setSelectedRoom(null)
           }
         }}
+      />
+    </>
+  )
+}
+
+function FilterPanel({
+  contentViewportClassName,
+  guests,
+  onClear,
+  onGuestsChange,
+  onFeaturedAreaToggle,
+  onPriceRangeChange,
+  onProvinceToggle,
+  onTypeToggle,
+  priceRange,
+  selectedFeaturedAreas,
+  selectedProvinces,
+  selectedTypes,
+}: {
+  contentViewportClassName?: string
+  guests: string
+  onClear: () => void
+  onGuestsChange: (value: string) => void
+  onFeaturedAreaToggle: (value: string) => void
+  onPriceRangeChange: (value: [number, number]) => void
+  onProvinceToggle: (value: string) => void
+  onTypeToggle: (value: string) => void
+  priceRange: [number, number]
+  selectedFeaturedAreas: string[]
+  selectedProvinces: string[]
+  selectedTypes: string[]
+}) {
+  const [expandedGroups, setExpandedGroups] = useState({
+    areas: false,
+    provinces: false,
+    types: false,
+  })
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <CardTitle>Bộ lọc</CardTitle>
+        <CardDescription>Tùy chọn tìm phòng nhanh</CardDescription>
+      </CardHeader>
+      <ScrollArea
+        className={cn("max-h-[calc(100vh-12rem)]", contentViewportClassName)}
       >
-        <DrawerContent className="mx-auto w-full max-w-5xl">
-          {selectedRoom ? (
-            <>
-              <DrawerHeader>
-                <DrawerTitle>{selectedRoom.name}</DrawerTitle>
-                <DrawerDescription>
-                  Mã phòng {selectedRoom.code} · {selectedRoom.locationLevel2},{" "}
-                  {selectedRoom.locationLevel1}
-                </DrawerDescription>
-              </DrawerHeader>
-              <div className="grid gap-5 overflow-y-auto px-4 pb-2 md:grid-cols-[1.1fr_0.9fr]">
+        <CardContent className="flex flex-col gap-5">
+          <FilterOptionGroup
+            defaultVisible={5}
+            expanded={expandedGroups.types}
+            id="type-filter"
+            onExpandedChange={() =>
+              setExpandedGroups((current) => ({
+                ...current,
+                types: !current.types,
+              }))
+            }
+            onToggle={onTypeToggle}
+            options={typeOptions}
+            selectedValues={selectedTypes}
+            title="Loại hình"
+          />
+          <FilterOptionGroup
+            defaultVisible={3}
+            expanded={expandedGroups.provinces}
+            id="province-filter"
+            onExpandedChange={() =>
+              setExpandedGroups((current) => ({
+                ...current,
+                provinces: !current.provinces,
+              }))
+            }
+            onToggle={onProvinceToggle}
+            options={provinceOptions}
+            selectedValues={selectedProvinces}
+            title="Khu vực theo tỉnh"
+          />
+          <FilterOptionGroup
+            defaultVisible={4}
+            expanded={expandedGroups.areas}
+            id="featured-area-filter"
+            onExpandedChange={() =>
+              setExpandedGroups((current) => ({
+                ...current,
+                areas: !current.areas,
+              }))
+            }
+            onToggle={onFeaturedAreaToggle}
+            options={featuredAreaOptions}
+            selectedValues={selectedFeaturedAreas}
+            title="Khu vực nổi bật"
+          />
+          <FieldSet>
+            <FieldLegend>Mức giá</FieldLegend>
+            <FieldDescription>
+              {formatCurrency(priceRange[0])} - {formatCurrency(priceRange[1])}
+            </FieldDescription>
+            <div className="flex flex-col gap-3 pt-2">
+              <Slider
+                min={priceRangeBounds[0]}
+                max={priceRangeBounds[1]}
+                step={100000}
+                value={priceRange}
+                onValueChange={(value) =>
+                  onPriceRangeChange(value as [number, number])
+                }
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{formatCurrency(priceRangeBounds[0])}</span>
+                <span>{formatCurrency(priceRangeBounds[1])}</span>
+              </div>
+            </div>
+          </FieldSet>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="guest-filter">Số khách tối thiểu</FieldLabel>
+              <Select value={guests} onValueChange={onGuestsChange}>
+                <SelectTrigger id="guest-filter" className="w-full">
+                  <SelectValue placeholder="Số khách" />
+                </SelectTrigger>
+                <SelectContent position="popper" className="max-h-72">
+                  <SelectGroup>
+                    {guestOptions.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {value} khách
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          </FieldGroup>
+        </CardContent>
+      </ScrollArea>
+      <CardFooter>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={onClear}
+        >
+          Xóa bộ lọc
+        </Button>
+      </CardFooter>
+    </Card>
+  )
+}
+
+function FilterOptionGroup({
+  defaultVisible,
+  expanded,
+  id,
+  onExpandedChange,
+  onToggle,
+  options,
+  selectedValues,
+  title,
+}: {
+  defaultVisible: number
+  expanded: boolean
+  id: string
+  onExpandedChange: () => void
+  onToggle: (value: string) => void
+  options: Array<{ label: string; value: string }>
+  selectedValues: string[]
+  title: string
+}) {
+  const visibleOptions = expanded ? options : options.slice(0, defaultVisible)
+
+  return (
+    <FieldSet>
+      <FieldLegend>{title}</FieldLegend>
+      <FieldGroup className="gap-2 pt-2">
+        {visibleOptions.map((option) => {
+          const optionId = `${id}-${option.value
+            .toLowerCase()
+            .replace(/\s+/g, "-")}`
+
+          return (
+            <Field key={option.value} orientation="horizontal">
+              <Checkbox
+                id={optionId}
+                checked={selectedValues.includes(option.value)}
+                onCheckedChange={() => onToggle(option.value)}
+              />
+              <FieldLabel htmlFor={optionId} className="font-normal">
+                {option.label}
+              </FieldLabel>
+            </Field>
+          )
+        })}
+        {options.length > defaultVisible ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-fit px-0"
+            onClick={onExpandedChange}
+          >
+            {expanded ? "Thu gọn" : "Xem thêm"}
+            {expanded ? (
+              <CaretUpIcon data-icon="inline-end" />
+            ) : (
+              <CaretDownIcon data-icon="inline-end" />
+            )}
+          </Button>
+        ) : null}
+      </FieldGroup>
+    </FieldSet>
+  )
+}
+
+export function RoomCard({
+  room,
+  onQuickView,
+  showTypePrefix = true,
+}: {
+  room: PublicRoom
+  onQuickView?: () => void
+  showTypePrefix?: boolean
+}) {
+  const image = getPrimaryRoomMedia(room.media)
+  const accommodationType = getAccommodationType(room)
+
+  return (
+    <Card size="sm" className="pt-0">
+      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+        <Link href={`/phong/${room.slug}`} aria-label={`Xem ${room.name}`}>
+          <Image
+            src={image.src}
+            alt={image.alt}
+            fill
+            className="object-cover transition-transform duration-300 hover:scale-[1.03]"
+            sizes="(min-width: 1280px) 30vw, (min-width: 768px) 50vw, 100vw"
+          />
+        </Link>
+        <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-2">
+          <Badge variant="secondary">#{room.code}</Badge>
+          {room.featured ? <Badge>Nổi bật</Badge> : null}
+        </div>
+      </div>
+      <CardHeader>
+        <CardTitle className="line-clamp-2">
+          <Link href={`/phong/${room.slug}`}>
+            {showTypePrefix ? `${accommodationType} | ${room.name}` : room.name}
+          </Link>
+        </CardTitle>
+        <CardDescription>
+          {room.locationLevel2}, {room.locationLevel1}
+        </CardDescription>
+        <CardAction>
+          <Badge variant="outline">
+            <StarIcon data-icon="inline-start" />
+            {getRoomScore(room)}
+          </Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <p className="line-clamp-1 text-xs text-muted-foreground">
+          {room.address}
+        </p>
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          <InlineFact icon={UsersThreeIcon} label={`${room.guests} khách`} />
+          <InlineFact icon={BedIcon} label={`${room.bedrooms} phòng ngủ`} />
+          <InlineFact
+            icon={BathtubIcon}
+            label={`${getBathroomCount(room)} phòng tắm`}
+          />
+        </div>
+      </CardContent>
+      <CardFooter className="flex-wrap justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Giá tham khảo</span>
+          <span className="text-base font-semibold">
+            {formatCurrency(room.referencePrice)}
+          </span>
+          <span className="text-xs text-muted-foreground line-through">
+            {formatCurrency(room.strikePrice)}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2 max-sm:w-full">
+          {onQuickView ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="max-sm:h-10 max-sm:flex-1"
+              onClick={onQuickView}
+            >
+              Xem nhanh
+            </Button>
+          ) : null}
+          <Button asChild className="max-sm:h-10 max-sm:flex-1">
+            <Link href={`/phong/${room.slug}`}>
+              Chi tiết
+              <ArrowRightIcon data-icon="inline-end" />
+            </Link>
+          </Button>
+        </div>
+      </CardFooter>
+    </Card>
+  )
+}
+
+function RoomQuickView({
+  room,
+  onOpenChange,
+}: {
+  room: PublicRoom | null
+  onOpenChange: (open: boolean) => void
+}) {
+  const image = getPrimaryRoomMedia(room?.media ?? [])
+  const imageOptions = room?.media.filter((item) => item.type === "image") ?? []
+  const [activeImageSrc, setActiveImageSrc] = useState<string | null>(null)
+  const activeImage =
+    imageOptions.find((item) => item.src === activeImageSrc) ?? image
+
+  return (
+    <Drawer open={Boolean(room)} onOpenChange={onOpenChange}>
+      <DrawerContent className="mx-auto w-full max-w-5xl lg:!h-[760px] lg:!max-h-[calc(100svh-2rem)]">
+        {room ? (
+          <>
+            <DrawerClose asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="absolute top-4 right-4 z-10"
+              >
+                Đóng
+              </Button>
+            </DrawerClose>
+            <DrawerHeader>
+              <DrawerTitle>{room.name}</DrawerTitle>
+              <DrawerDescription>
+                Mã phòng {room.code} · {room.locationLevel2},{" "}
+                {room.locationLevel1}
+              </DrawerDescription>
+            </DrawerHeader>
+            <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto px-4 pb-2 md:grid-cols-[1.1fr_0.9fr] lg:grid-cols-[540px_minmax(0,1fr)]">
+              <div className="flex flex-col gap-2">
                 <div className="relative aspect-[4/3] min-h-64 overflow-hidden bg-muted">
                   <Image
-                    src={getPrimaryRoomMedia(selectedRoom.media).src}
-                    alt={getPrimaryRoomMedia(selectedRoom.media).alt}
+                    src={activeImage.src}
+                    alt={activeImage.alt}
                     fill
                     className="object-cover"
                     sizes="(min-width: 768px) 50vw, 100vw"
                   />
                 </div>
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRoom.highlights.map((item) => (
-                      <Badge key={item} variant="secondary">
-                        {item}
-                      </Badge>
+                {imageOptions.length > 1 ? (
+                  <div className="grid grid-cols-4 gap-1">
+                    {imageOptions.slice(0, 4).map((item) => (
+                      <button
+                        key={item.src}
+                        type="button"
+                        aria-label={`Xem ảnh ${item.alt}`}
+                        className={cn(
+                          "relative aspect-[4/3] overflow-hidden bg-muted ring-1 ring-border",
+                          activeImage.src === item.src && "ring-primary"
+                        )}
+                        onClick={() => setActiveImageSrc(item.src)}
+                      >
+                        <Image
+                          src={item.src}
+                          alt={item.alt}
+                          fill
+                          className="object-cover"
+                          sizes="96px"
+                        />
+                      </button>
                     ))}
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-baseline gap-2">
-                      <p className="text-xl font-semibold">
-                        {formatCurrency(selectedRoom.referencePrice)}
-                      </p>
-                      <p className="text-sm text-muted-foreground line-through">
-                        {formatCurrency(selectedRoom.strikePrice)}
-                      </p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Cập nhật {formatDate(selectedRoom.updatedAt)}
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap gap-2">
+                  {room.highlights.map((item) => (
+                    <Badge key={item} variant="secondary">
+                      {item}
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-xl font-semibold">
+                      {formatCurrency(room.referencePrice)}
+                    </p>
+                    <p className="text-sm text-muted-foreground line-through">
+                      {formatCurrency(room.strikePrice)}
                     </p>
                   </div>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {selectedRoom.description}
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <RoomFact
-                      icon={BedIcon}
-                      label={`${selectedRoom.bedrooms} PN`}
-                    />
-                    <RoomFact
-                      icon={UsersThreeIcon}
-                      label={`${selectedRoom.guests} khách`}
-                    />
-                    <RoomFact icon={HouseLineIcon} label={selectedRoom.area} />
-                  </div>
-                  <div className="flex items-start gap-2 text-sm">
-                    <MapPinIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-                    <span>
-                      {selectedRoom.address}, {selectedRoom.locationLevel1}
-                    </span>
-                  </div>
+                </div>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {room.description}
+                </p>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <RoomFact icon={BedIcon} label={`${room.bedrooms} PN`} />
+                  <RoomFact
+                    icon={UsersThreeIcon}
+                    label={`${room.guests} khách`}
+                  />
+                  <RoomFact icon={HouseLineIcon} label={room.area} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <CopyableAddress
+                    address={`${room.address}, ${room.locationLevel1}`}
+                  />
+                  <Button asChild variant="outline" className="w-fit">
+                    <a
+                      href={room.googleMapUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <MapPinIcon data-icon="inline-start" />
+                      Mở Google Maps
+                    </a>
+                  </Button>
                 </div>
               </div>
-              <DrawerFooter className="sm:flex-row sm:justify-end">
-                <DrawerClose asChild>
-                  <Button variant="outline">Đóng</Button>
-                </DrawerClose>
-                <Button asChild variant="outline">
-                  <a
-                    href={selectedRoom.googleMapUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <MapPinIcon data-icon="inline-start" />
-                    Mở Google Map
-                  </a>
-                </Button>
-                <Button asChild>
-                  <Link href={`/phong/${selectedRoom.slug}`}>
-                    Xem link chi tiết
-                    <ArrowRightIcon data-icon="inline-end" />
-                  </Link>
-                </Button>
-              </DrawerFooter>
-            </>
-          ) : null}
-        </DrawerContent>
-      </Drawer>
-    </>
+            </div>
+            <DrawerFooter className="sm:flex-row sm:justify-end">
+              <ContactActions roomCode={room.code} />
+              <Button asChild>
+                <Link href={`/phong/${room.slug}`}>
+                  Xem link chi tiết
+                  <ArrowRightIcon data-icon="inline-end" />
+                </Link>
+              </Button>
+            </DrawerFooter>
+          </>
+        ) : null}
+      </DrawerContent>
+    </Drawer>
   )
 }
 
-function RoomCard({
-  room,
-  onQuickView,
-}: {
-  room: PublicRoom
-  onQuickView: () => void
-}) {
-  const image = getPrimaryRoomMedia(room.media)
-
+function HeroMetric({ value, label }: { value: string; label: string }) {
   return (
-    <Card size="sm" className="pt-0">
-      <div className="relative aspect-[4/3] bg-muted">
-        <Image
-          src={image.src}
-          alt={image.alt}
-          fill
-          className="object-cover"
-          sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
-        />
-      </div>
-      <CardHeader>
-        <CardTitle>{room.name}</CardTitle>
-        <CardDescription>
-          {room.locationLevel2}, {room.locationLevel1}
-        </CardDescription>
-        <CardAction>
-          <Badge variant="outline">#{room.code}</Badge>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <div className="flex flex-wrap gap-2">
-          {room.highlights.slice(0, 3).map((item) => (
-            <Badge key={item} variant="secondary">
-              <StarIcon data-icon="inline-start" />
-              {item}
-            </Badge>
-          ))}
-        </div>
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <RoomFact icon={BedIcon} label={`${room.bedrooms} PN`} />
-          <RoomFact icon={UsersThreeIcon} label={`${room.guests} khách`} />
-          <RoomFact icon={HouseLineIcon} label={room.area} />
-        </div>
-        <div className="flex items-baseline justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-semibold">
-              {formatCurrency(room.referencePrice)}
-            </span>
-            <span className="text-xs text-muted-foreground line-through">
-              {formatCurrency(room.strikePrice)}
-            </span>
-          </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <CalendarBlankIcon className="size-4" />
-            {formatDate(room.updatedAt)}
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="flex-wrap justify-between gap-2">
-        <Button type="button" variant="outline" onClick={onQuickView}>
-          <TagIcon data-icon="inline-start" />
-          Xem nhanh
-        </Button>
-        <Button asChild>
-          <Link href={`/phong/${room.slug}`}>
-            Chi tiết
-            <ArrowRightIcon data-icon="inline-end" />
-          </Link>
-        </Button>
-      </CardFooter>
-    </Card>
+    <div className="flex min-w-0 flex-col gap-1 border bg-card px-3 py-3">
+      <span className="font-heading text-lg font-semibold">{value}</span>
+      <span className="truncate text-muted-foreground">{label}</span>
+    </div>
+  )
+}
+
+function InlineFact({
+  icon: Icon,
+  label,
+}: {
+  icon: ComponentType<{ className?: string }>
+  label: string
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Icon className="size-4 text-primary" />
+      {label}
+    </span>
   )
 }
 
@@ -471,7 +1228,7 @@ function RoomFact({
   icon: Icon,
   label,
 }: {
-  icon: typeof BedIcon
+  icon: ComponentType<{ className?: string }>
   label: string
 }) {
   return (

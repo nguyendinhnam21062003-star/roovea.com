@@ -1,0 +1,16 @@
+import { NextResponse } from "next/server"
+
+import { requireAdminApiSession } from "@/lib/auth/api"
+import { upsertRoom } from "@/lib/services/admin-data"
+
+export async function POST(request: Request) {
+  const auth = await requireAdminApiSession()
+
+  if (!auth.session) {
+    return auth.response
+  }
+
+  const room = await upsertRoom(await request.json(), auth.session.email)
+
+  return NextResponse.json({ room })
+}
