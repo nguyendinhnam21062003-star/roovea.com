@@ -6,13 +6,11 @@ import {
   ArrowRightIcon,
   BathtubIcon,
   BedIcon,
-  CheckCircleIcon,
   HouseLineIcon,
   InfoIcon,
   MapPinIcon,
   ShieldCheckIcon,
   UsersThreeIcon,
-  XCircleIcon,
 } from "@phosphor-icons/react/dist/ssr"
 
 import { ContactActions } from "@/components/contact-actions"
@@ -39,7 +37,6 @@ import {
   getRoomPolicies,
 } from "@/lib/rooms"
 import { getPublicRoomBySlug, getPublicRooms } from "@/lib/rooms-data"
-import { cn } from "@/lib/utils"
 
 type RoomPageProps = {
   params: Promise<{ slug: string }>
@@ -79,32 +76,6 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
   const discount = getRoomDiscount(room)
   const policies = getRoomPolicies(room)
   const fullAddress = `${room.address}, ${room.locationLevel1}`
-  const restrictionPolicyItems = [
-    {
-      icon: policies.cancellable ? CheckCircleIcon : XCircleIcon,
-      label: "Hủy phòng",
-      text: policies.cancellable
-        ? "Có hủy phòng theo điều kiện"
-        : "Không hủy sát ngày",
-      tone: policies.cancellable ? "positive" : "negative",
-    },
-    {
-      icon: policies.smokingAllowed ? CheckCircleIcon : XCircleIcon,
-      label: "Hút thuốc",
-      text: policies.smokingAllowed
-        ? "Có khu vực hút thuốc"
-        : "Không hút thuốc trong phòng",
-      tone: policies.smokingAllowed ? "positive" : "negative",
-    },
-    {
-      icon: policies.petsAllowed ? CheckCircleIcon : XCircleIcon,
-      label: "Thú cưng",
-      text: policies.petsAllowed
-        ? "Có thể mang thú cưng sau khi xác nhận"
-        : "Không thú cưng",
-      tone: policies.petsAllowed ? "positive" : "negative",
-    },
-  ] as const
   const checkTimePolicyItems = [
     {
       icon: InfoIcon,
@@ -119,7 +90,6 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
       tone: "neutral",
     },
   ] as const
-  const otherPolicyText = policies.notes.join(" ")
   const similarRooms = (await getPublicRooms())
     .filter((item) => item.slug !== room.slug)
     .slice(0, 3)
@@ -248,7 +218,7 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
             <DetailFact
               icon={BathtubIcon}
               title={`${bathrooms} phòng tắm`}
-              text="Tiện nghi phòng"
+              text="Phòng tắm"
             />
             <DetailFact
               icon={HouseLineIcon}
@@ -276,21 +246,6 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
                     </Badge>
                   ))}
                 </div>
-                <Separator />
-                <div className="flex flex-col gap-3">
-                  <h2 className="flex items-center gap-2 font-heading text-base font-semibold">
-                    <CheckCircleIcon className="size-4 text-primary" />
-                    Tiện nghi
-                  </h2>
-                  <div className="flex flex-wrap gap-2">
-                    {room.amenities.map((item) => (
-                      <Badge key={item} variant="outline">
-                        <CheckCircleIcon data-icon="inline-start" />
-                        {item}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
@@ -311,32 +266,6 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
                     />
                   ))}
                 </div>
-                <Separator />
-                <div className="flex flex-col gap-3">
-                  <h2 className="text-sm font-semibold">Nội quy</h2>
-                  <ul className="grid gap-x-5 gap-y-2 sm:grid-cols-2">
-                    {restrictionPolicyItems.map((item) => (
-                      <PolicyRuleItem
-                        key={item.label}
-                        icon={item.icon}
-                        label={item.label}
-                        text={item.text}
-                        tone={item.tone}
-                      />
-                    ))}
-                  </ul>
-                </div>
-                {otherPolicyText ? (
-                  <>
-                    <Separator />
-                    <section className="flex min-w-0 flex-col gap-2">
-                      <h2 className="text-sm font-semibold">Chính sách khác</h2>
-                      <p className="text-sm leading-7 text-muted-foreground">
-                        {otherPolicyText}
-                      </p>
-                    </section>
-                  </>
-                ) : null}
               </CardContent>
             </Card>
           </div>
@@ -418,35 +347,6 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
       </section>
       <SiteFooter />
     </main>
-  )
-}
-
-function PolicyRuleItem({
-  icon: Icon,
-  label,
-  text,
-  tone,
-}: {
-  icon: ComponentType<{ className?: string }>
-  label: string
-  text: string
-  tone: "negative" | "neutral" | "positive"
-}) {
-  const toneClassName =
-    tone === "positive"
-      ? "text-primary"
-      : tone === "negative"
-        ? "text-destructive"
-        : "text-muted-foreground"
-
-  return (
-    <li className="grid min-w-0 grid-cols-[1rem_minmax(0,1fr)] gap-2 text-sm leading-6">
-      <Icon className={cn("mt-1 size-3.5 shrink-0", toneClassName)} />
-      <span className="min-w-0 break-words">
-        <span className="font-medium text-foreground">{label}</span>
-        <span className="text-muted-foreground"> · {text}</span>
-      </span>
-    </li>
   )
 }
 

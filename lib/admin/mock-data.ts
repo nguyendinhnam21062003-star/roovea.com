@@ -1,4 +1,4 @@
-import type { Room, Supplier } from "@/lib/admin/types"
+﻿import type { Room, Supplier } from "@/lib/admin/types"
 
 export const seedSuppliers: Supplier[] = [
   {
@@ -249,7 +249,6 @@ export const seedRooms: Room[] = [
     status: "published",
     accommodationTypes: ["homestay"],
     otherAccommodationType: "",
-    spaceType: "entire_place",
     description: "Phòng gần biển, phù hợp cho nhóm bạn hoặc gia đình nhỏ.",
     areaM2: 35,
     capacity: {
@@ -257,7 +256,6 @@ export const seedRooms: Room[] = [
       bedrooms: 1,
       bathrooms: 1,
       beds: 2,
-      bedTypes: ["double_bed"],
     },
     supplierId: "supplier-1",
     pricing: {
@@ -317,7 +315,6 @@ export const seedRooms: Room[] = [
     status: "published",
     accommodationTypes: ["villa", "whole_house"],
     otherAccommodationType: "",
-    spaceType: "entire_place",
     description: "Villa riêng tư gần biển An Bàng, có hồ bơi và bếp đầy đủ.",
     areaM2: 180,
     capacity: {
@@ -325,7 +322,6 @@ export const seedRooms: Room[] = [
       bedrooms: 3,
       bathrooms: 3,
       beds: 4,
-      bedTypes: ["double_bed", "king_bed"],
     },
     supplierId: "supplier-2",
     pricing: {
@@ -384,7 +380,6 @@ export const seedRooms: Room[] = [
     status: "draft",
     accommodationTypes: ["studio"],
     otherAccommodationType: "",
-    spaceType: "entire_place",
     description: "Studio gọn trong khu trung tâm, thuận tiện đi bộ.",
     areaM2: 32,
     capacity: {
@@ -392,7 +387,6 @@ export const seedRooms: Room[] = [
       bedrooms: 1,
       bathrooms: 1,
       beds: 1,
-      bedTypes: ["double_bed"],
     },
     supplierId: "supplier-3",
     pricing: {
@@ -438,7 +432,6 @@ export const seedRooms: Room[] = [
     status: "hidden",
     accommodationTypes: ["apartment"],
     otherAccommodationType: "",
-    spaceType: "entire_place",
     description: "Penthouse tầng cao có tầm nhìn về sông, phòng khách rộng.",
     areaM2: 120,
     capacity: {
@@ -446,7 +439,6 @@ export const seedRooms: Room[] = [
       bedrooms: 2,
       bathrooms: 2,
       beds: 2,
-      bedTypes: ["king_bed"],
     },
     supplierId: "supplier-4",
     pricing: {
@@ -500,7 +492,6 @@ export const seedRooms: Room[] = [
     status: "pending_completion",
     accommodationTypes: ["guesthouse", "homestay"],
     otherAccommodationType: "",
-    spaceType: "private_room",
     description: "Bungalow trong khu vườn yên tĩnh, cách biển một quãng ngắn.",
     areaM2: 52,
     capacity: {
@@ -508,7 +499,6 @@ export const seedRooms: Room[] = [
       bedrooms: 1,
       bathrooms: 1,
       beds: 2,
-      bedTypes: ["double_bed", "single_bed"],
     },
     pricing: {
       supplierPrice: 1650000,
@@ -561,7 +551,6 @@ export const seedRooms: Room[] = [
     status: "published",
     accommodationTypes: ["homestay", "apartment"],
     otherAccommodationType: "",
-    spaceType: "entire_place",
     description:
       "Homestay trong khu phố cổ, thuận tiện đi bộ đến hồ Hoàn Kiếm.",
     areaM2: 38,
@@ -570,7 +559,6 @@ export const seedRooms: Room[] = [
       bedrooms: 1,
       bathrooms: 1,
       beds: 1,
-      bedTypes: ["double_bed"],
     },
     supplierId: "supplier-6",
     pricing: {
@@ -624,7 +612,6 @@ export const seedRooms: Room[] = [
     status: "published",
     accommodationTypes: ["hotel"],
     otherAccommodationType: "",
-    spaceType: "private_room",
     description: "Phòng khách sạn gọn, gần biển Mỹ Khê và khu ăn uống.",
     areaM2: 28,
     capacity: {
@@ -632,7 +619,6 @@ export const seedRooms: Room[] = [
       bedrooms: 1,
       bathrooms: 1,
       beds: 1,
-      bedTypes: ["double_bed"],
     },
     supplierId: "supplier-7",
     pricing: {
@@ -686,7 +672,6 @@ export const seedRooms: Room[] = [
     status: "pending_completion",
     accommodationTypes: ["apartment"],
     otherAccommodationType: "",
-    spaceType: "entire_place",
     description: "Căn hộ hai phòng ngủ phù hợp gia đình nhỏ ở Tây Hồ.",
     areaM2: 75,
     capacity: {
@@ -694,7 +679,6 @@ export const seedRooms: Room[] = [
       bedrooms: 2,
       bathrooms: 2,
       beds: 3,
-      bedTypes: ["double_bed", "single_bed"],
     },
     supplierId: "supplier-6",
     pricing: {
@@ -744,7 +728,6 @@ export const seedRooms: Room[] = [
     status: "discontinued",
     accommodationTypes: ["cruise"],
     otherAccommodationType: "",
-    spaceType: "private_room",
     description: "Cabin du thuyền thử nghiệm, đã ngừng hợp tác.",
     areaM2: 24,
     capacity: {
@@ -752,7 +735,6 @@ export const seedRooms: Room[] = [
       bedrooms: 1,
       bathrooms: 1,
       beds: 1,
-      bedTypes: ["double_bed"],
     },
     supplierId: "supplier-1",
     pricing: {
@@ -806,7 +788,6 @@ export const seedRooms: Room[] = [
     status: "draft",
     accommodationTypes: ["whole_house", "other"],
     otherAccommodationType: "Nhà phố nhiều tầng",
-    spaceType: "entire_place",
     description: "Nhà nguyên căn cần bổ sung ảnh trước khi đăng.",
     areaM2: 95,
     capacity: {
@@ -814,7 +795,6 @@ export const seedRooms: Room[] = [
       bedrooms: 3,
       bathrooms: 2,
       beds: 3,
-      bedTypes: ["double_bed"],
     },
     supplierId: "supplier-8",
     pricing: {

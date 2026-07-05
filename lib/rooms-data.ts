@@ -4,11 +4,7 @@ import { and, asc, eq, isNull } from "drizzle-orm"
 
 import { db } from "@/db/client"
 import { roomMedia, rooms } from "@/db/schema"
-import {
-  accommodationTypeLabels,
-  getAmenityLabel,
-  getNearbyTagLabel,
-} from "@/lib/admin/options"
+import { accommodationTypeLabels, getNearbyTagLabel } from "@/lib/admin/options"
 import { seedRooms } from "@/lib/admin/mock-data"
 import type { AccommodationType, Room, RoomImage } from "@/lib/admin/types"
 import type { PublicRoom } from "@/lib/rooms"
@@ -47,10 +43,9 @@ function mapDemoPublicRoom(room: Room): PublicRoom {
     src: url,
     alt: `Video ${room.name}`,
   }))
-  const highlights = [
-    ...room.location.nearbyTags.map(getNearbyTagLabel),
-    ...room.customAmenities,
-  ].filter(Boolean)
+  const highlights = room.location.nearbyTags
+    .map(getNearbyTagLabel)
+    .filter(Boolean)
 
   return {
     id: room.id,
@@ -78,10 +73,6 @@ function mapDemoPublicRoom(room: Room): PublicRoom {
       highlights.length > 0
         ? highlights
         : [accommodationLabel(room.accommodationTypes[0])],
-    amenities: [
-      ...room.amenities.map(getAmenityLabel),
-      ...room.customAmenities,
-    ],
     policyData: room.policies,
   }
 }
@@ -119,10 +110,7 @@ function mapPublicRoom(row: RoomRow, mediaRows: MediaRow[]): PublicRoom {
             alt: row.name,
           },
         ]
-  const highlights = [
-    ...row.nearbyTags.map(getNearbyTagLabel),
-    ...row.customAmenities,
-  ].filter(Boolean)
+  const highlights = row.nearbyTags.map(getNearbyTagLabel).filter(Boolean)
 
   return {
     id: row.id,
@@ -148,7 +136,6 @@ function mapPublicRoom(row: RoomRow, mediaRows: MediaRow[]): PublicRoom {
       highlights.length > 0
         ? highlights
         : [accommodationLabel(row.accommodationTypes[0])],
-    amenities: [...row.amenities.map(getAmenityLabel), ...row.customAmenities],
     policyData: row.policies,
   }
 }

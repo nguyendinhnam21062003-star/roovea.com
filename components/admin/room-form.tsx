@@ -59,7 +59,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Progress } from "@/components/ui/progress"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
   SelectContent,
@@ -85,41 +84,29 @@ import {
   getRoomThumbnail,
   isValidUrl,
   isWhitelistedVideoUrl,
-  slugify,
+  withAutomaticRoomSeo,
 } from "@/lib/admin/helpers"
 import {
   accommodationTypeLabels,
   accommodationTypeOptions,
-  amenityGroups,
-  bedTypeOptions,
-  cancellationPolicyOptions,
   distanceToCenterOptions,
-  getAmenityLabel,
   getNearbyTagLabel,
   nearbyTagOptions,
-  petsPolicyOptions,
   priceUnitOptions,
   provinceOptions,
   roomStatusLabels,
   roomStatusOptions,
-  smokingPolicyOptions,
-  spaceTypeOptions,
   supplierStatusLabels,
 } from "@/lib/admin/options"
 import { buildEmptySupplier, useAdminStore } from "@/lib/admin/store"
 import type {
   AccommodationType,
-  BedType,
-  CancellationPolicy,
   CommissionType,
   DistanceToCenter,
-  PetsPolicy,
   PriceUnit,
   Room,
   RoomImage,
   RoomStatus,
-  SmokingPolicy,
-  SpaceType,
 } from "@/lib/admin/types"
 
 type RoomFormProps = {
@@ -220,9 +207,7 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
   const [quickSupplierOpen, setQuickSupplierOpen] = useState(false)
   const [videoUrl, setVideoUrl] = useState("")
   const [videoError, setVideoError] = useState("")
-  const [customAmenity, setCustomAmenity] = useState("")
   const [draggingImageId, setDraggingImageId] = useState<string | null>(null)
-  const [slugEdited, setSlugEdited] = useState(mode === "edit")
   const [saving, setSaving] = useState(false)
 
   const completion = useMemo(() => getRoomCompletion(draft), [draft])
@@ -284,34 +269,20 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
     }))
   }
 
-  function updateSeo(patch: Partial<Room["seo"]>) {
-    setDraft((current) => ({
-      ...current,
-      seo: { ...current.seo, ...patch },
-    }))
-  }
-
   function clearError(key: string) {
     setErrors((current) => ({ ...current, [key]: "" }))
   }
 
   function handleNameChange(value: string) {
-    setDraft((current) => ({
-      ...current,
-      name: value,
-      seo: {
-        ...current.seo,
-        slug: slugEdited ? current.seo.slug : slugify(value),
-      },
-    }))
+    updateRoom({ name: value })
     clearError("name")
   }
 
   async function saveRoom(requestedStatus: RoomStatus) {
-    const nextRoom = {
+    const nextRoom = withAutomaticRoomSeo({
       ...draft,
       status: requestedStatus,
-    }
+    })
     const saveAsDraft = requestedStatus === "draft"
     const nextErrors = validateRoom(nextRoom, saveAsDraft)
 
@@ -602,21 +573,6 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
     }
   }
 
-  function addCustomAmenity() {
-    const value = customAmenity.trim()
-
-    if (!value) {
-      return
-    }
-
-    updateRoom({
-      customAmenities: draft.customAmenities.includes(value)
-        ? draft.customAmenities
-        : [...draft.customAmenities, value],
-    })
-    setCustomAmenity("")
-  }
-
   return (
     <>
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -687,30 +643,10 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                 type="button"
                 variant="outline"
                 disabled={saving}
-                onClick={() => void saveRoom("draft")}
-              >
-                Lưu nháp
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={saving}
                 onClick={() => setPreviewOpen(true)}
               >
                 <EyeIcon data-icon="inline-start" />
                 Xem trước
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={() =>
-                  void saveRoom(
-                    draft.status === "published" ? "hidden" : "published"
-                  )
-                }
-              >
-                {draft.status === "published" ? "Tạm ẩn" : "Đăng phòng"}
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving
@@ -801,28 +737,6 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                   />
                 </Field>
               ) : null}
-              <Field className="lg:col-span-2">
-                <FieldLabel>Loại không gian thuê</FieldLabel>
-                <RadioGroup
-                  value={draft.spaceType}
-                  onValueChange={(value) =>
-                    updateRoom({ spaceType: value as SpaceType })
-                  }
-                  className="grid gap-3 md:grid-cols-3"
-                >
-                  {spaceTypeOptions.map((option) => (
-                    <Field key={option.value} orientation="horizontal">
-                      <RadioGroupItem
-                        id={`space-type-${option.value}`}
-                        value={option.value}
-                      />
-                      <FieldLabel htmlFor={`space-type-${option.value}`}>
-                        {option.label}
-                      </FieldLabel>
-                    </Field>
-                  ))}
-                </RadioGroup>
-              </Field>
               <Field
                 data-invalid={Boolean(errors.description)}
                 className="lg:col-span-2"
@@ -895,35 +809,6 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                   value={draft.capacity.bathrooms}
                   onChange={(event) =>
                     updateCapacity({ bathrooms: Number(event.target.value) })
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="room-beds">Số giường</FieldLabel>
-                <Input
-                  id="room-beds"
-                  type="number"
-                  min={0}
-                  value={draft.capacity.beds}
-                  onChange={(event) =>
-                    updateCapacity({ beds: Number(event.target.value) })
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Loại giường</FieldLabel>
-                <CheckboxGrid
-                  options={bedTypeOptions}
-                  values={draft.capacity.bedTypes}
-                  idPrefix="room-bed-type"
-                  onChange={(value, checked) =>
-                    updateCapacity({
-                      bedTypes: toggleValue(
-                        draft.capacity.bedTypes,
-                        value as BedType,
-                        checked
-                      ),
-                    })
                   }
                 />
               </Field>
@@ -1550,6 +1435,7 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                 <Input
                   id="check-in"
                   type="time"
+                  step={60}
                   value={draft.policies.checkInTime}
                   onChange={(event) => {
                     updatePolicies({ checkInTime: event.target.value })
@@ -1564,6 +1450,7 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                 <Input
                   id="check-out"
                   type="time"
+                  step={60}
                   value={draft.policies.checkOutTime}
                   onChange={(event) => {
                     updatePolicies({ checkOutTime: event.target.value })
@@ -1573,266 +1460,20 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                 />
                 <FieldError>{errors.checkOutTime}</FieldError>
               </Field>
-              <PolicySelect
-                id="smoking-policy"
-                label="Hút thuốc"
-                value={draft.policies.smoking}
-                options={smokingPolicyOptions}
-                onChange={(value) =>
-                  updatePolicies({ smoking: value as SmokingPolicy })
-                }
-              />
-              <PolicySelect
-                id="pets-policy"
-                label="Thú cưng"
-                value={draft.policies.pets}
-                options={petsPolicyOptions}
-                onChange={(value) =>
-                  updatePolicies({ pets: value as PetsPolicy })
-                }
-              />
-              <PolicySelect
-                id="cancellation-policy"
-                label="Hủy phòng"
-                value={draft.policies.cancellationType}
-                options={cancellationPolicyOptions}
-                onChange={(value) =>
-                  updatePolicies({
-                    cancellationType: value as CancellationPolicy,
-                  })
-                }
-              />
-              <Field>
-                <FieldLabel htmlFor="minimum-nights">
-                  Số đêm tối thiểu
-                </FieldLabel>
-                <Input
-                  id="minimum-nights"
-                  type="number"
-                  min={1}
-                  value={draft.policies.minimumNights}
-                  onChange={(event) =>
-                    updatePolicies({
-                      minimumNights: Number(event.target.value),
-                    })
-                  }
-                />
-              </Field>
-              {draft.policies.cancellationType === "conditional" ? (
-                <Field className="lg:col-span-2">
-                  <FieldLabel htmlFor="cancellation-detail">
-                    Chi tiết hủy phòng
-                  </FieldLabel>
-                  <Textarea
-                    id="cancellation-detail"
-                    value={draft.policies.cancellationDetail}
-                    onChange={(event) =>
-                      updatePolicies({
-                        cancellationDetail: event.target.value,
-                      })
-                    }
-                  />
-                </Field>
-              ) : null}
-              <Field orientation="horizontal">
-                <Switch
-                  id="deposit-required"
-                  checked={draft.policies.depositRequired}
-                  onCheckedChange={(checked) =>
-                    updatePolicies({ depositRequired: checked })
-                  }
-                />
-                <FieldLabel htmlFor="deposit-required">Có đặt cọc</FieldLabel>
-              </Field>
-              {draft.policies.depositRequired ? (
-                <Field>
-                  <FieldLabel htmlFor="deposit-detail">
-                    Chi tiết đặt cọc
-                  </FieldLabel>
-                  <Input
-                    id="deposit-detail"
-                    value={draft.policies.depositDetail}
-                    onChange={(event) =>
-                      updatePolicies({ depositDetail: event.target.value })
-                    }
-                  />
-                </Field>
-              ) : null}
-              <Field className="lg:col-span-2">
-                <FieldLabel htmlFor="quiet-hours">
-                  Giờ yên tĩnh/quy định đặc biệt
-                </FieldLabel>
-                <Textarea
-                  id="quiet-hours"
-                  value={draft.policies.quietHours}
-                  onChange={(event) =>
-                    updatePolicies({ quietHours: event.target.value })
-                  }
-                />
-              </Field>
-              <Field className="lg:col-span-2">
-                <FieldLabel htmlFor="other-policy">Chính sách khác</FieldLabel>
-                <Textarea
-                  id="other-policy"
-                  value={draft.policies.otherPolicy}
-                  onChange={(event) =>
-                    updatePolicies({ otherPolicy: event.target.value })
-                  }
-                />
-              </Field>
             </FieldGroup>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Tiện nghi</CardTitle>
+            <CardTitle>Hiển thị</CardTitle>
             <CardDescription>
-              Tiện nghi được lưu theo key để lọc phòng ở danh sách admin.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-5">
-            {amenityGroups.map((group) => (
-              <Field key={group.title}>
-                <FieldLabel>{group.title}</FieldLabel>
-                <CheckboxGrid
-                  options={group.options}
-                  values={draft.amenities}
-                  idPrefix={`amenity-${group.title}`}
-                  onChange={(value, checked) =>
-                    updateRoom({
-                      amenities: toggleValue(draft.amenities, value, checked),
-                    })
-                  }
-                />
-              </Field>
-            ))}
-            <Field>
-              <FieldLabel htmlFor="custom-amenity">Tiện nghi khác</FieldLabel>
-              <div className="flex flex-col gap-2 md:flex-row">
-                <Input
-                  id="custom-amenity"
-                  value={customAmenity}
-                  onChange={(event) => setCustomAmenity(event.target.value)}
-                  placeholder="Nhập tiện nghi dạng text"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={addCustomAmenity}
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  Thêm
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {draft.customAmenities.map((amenity) => (
-                  <Badge key={amenity} variant="outline">
-                    {amenity}
-                    <button
-                      type="button"
-                      aria-label={`Xóa ${amenity}`}
-                      onClick={() =>
-                        updateRoom({
-                          customAmenities: draft.customAmenities.filter(
-                            (item) => item !== amenity
-                          ),
-                        })
-                      }
-                    >
-                      <XIcon data-icon="inline-end" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            </Field>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Hiển thị và SEO</CardTitle>
-            <CardDescription>
-              Các metadata này được lưu để hiển thị public và chia sẻ link.
+              SEO, slug, thumbnail chia sẻ và thứ tự hiển thị được hệ thống tự
+              tạo từ thông tin phòng.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup className="grid gap-4 lg:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="room-slug">Slug URL</FieldLabel>
-                <Input
-                  id="room-slug"
-                  value={draft.seo.slug}
-                  onChange={(event) => {
-                    setSlugEdited(true)
-                    updateSeo({ slug: slugify(event.target.value) })
-                  }}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Thumbnail chia sẻ</FieldLabel>
-                <Select
-                  value={
-                    draft.seo.shareThumbnailImageId ?? thumbnail?.id ?? "none"
-                  }
-                  onValueChange={(value) =>
-                    updateSeo({
-                      shareThumbnailImageId:
-                        value === "none" ? undefined : value,
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Chọn thumbnail" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="none">Dùng thumbnail phòng</SelectItem>
-                      {draft.media.images.map((image, index) => (
-                        <SelectItem key={image.id} value={image.id}>
-                          Ảnh {index + 1}:{" "}
-                          {image.caption || "Chưa có chú thích"}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="meta-title">Meta title</FieldLabel>
-                <Input
-                  id="meta-title"
-                  value={draft.seo.metaTitle}
-                  onChange={(event) =>
-                    updateSeo({ metaTitle: event.target.value })
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="display-priority">
-                  Thứ tự ưu tiên hiển thị
-                </FieldLabel>
-                <Input
-                  id="display-priority"
-                  type="number"
-                  value={draft.displayPriority}
-                  onChange={(event) =>
-                    updateRoom({ displayPriority: Number(event.target.value) })
-                  }
-                />
-              </Field>
-              <Field className="lg:col-span-2">
-                <FieldLabel htmlFor="meta-description">
-                  Meta description
-                </FieldLabel>
-                <Textarea
-                  id="meta-description"
-                  value={draft.seo.metaDescription}
-                  onChange={(event) =>
-                    updateSeo({ metaDescription: event.target.value })
-                  }
-                />
-              </Field>
               <Field orientation="horizontal">
                 <Switch
                   id="featured-room"
@@ -1945,13 +1586,6 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                   {formatCurrency(draft.pricing.referencePrice)}
                 </strong>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {draft.amenities.slice(0, 6).map((amenity) => (
-                  <Badge key={amenity} variant="secondary">
-                    {getAmenityLabel(amenity)}
-                  </Badge>
-                ))}
-              </div>
             </div>
           </div>
           <DialogFooter>
@@ -2007,39 +1641,5 @@ function CheckboxGrid({
         )
       })}
     </div>
-  )
-}
-
-function PolicySelect({
-  id,
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  id: string
-  label: string
-  value: string
-  options: Array<{ value: string; label: string }>
-  onChange: (value: string) => void
-}) {
-  return (
-    <Field>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="w-full">
-          <SelectValue placeholder={label} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </Field>
   )
 }

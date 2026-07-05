@@ -25,18 +25,13 @@ export type PublicRoom = {
   guests: number
   area: string
   highlights: string[]
-  amenities: string[]
   id: string
   policyData: AdminRoomPolicies
 }
 
 export type RoomPolicies = {
-  cancellable: boolean
   checkIn: string
   checkOut: string
-  notes: string[]
-  petsAllowed: boolean
-  smokingAllowed: boolean
 }
 
 export function getAccommodationType(room: Pick<PublicRoom, "name">) {
@@ -99,20 +94,8 @@ export function getRoomDiscount(
 }
 
 export function getRoomPolicies(room: PublicRoom): RoomPolicies {
-  const notes = [
-    room.policyData.cancellationDetail,
-    room.policyData.depositRequired ? room.policyData.depositDetail : "",
-    room.policyData.quietHours,
-    room.policyData.otherPolicy,
-    `Roovea xác nhận lại điều kiện cuối theo mã phòng #${room.code}.`,
-  ].filter(Boolean)
-
   return {
-    cancellable: room.policyData.cancellationType !== "not_allowed",
     checkIn: room.policyData.checkInTime,
     checkOut: room.policyData.checkOutTime,
-    notes,
-    petsAllowed: room.policyData.pets !== "not_allowed",
-    smokingAllowed: room.policyData.smoking !== "not_allowed",
   }
 }

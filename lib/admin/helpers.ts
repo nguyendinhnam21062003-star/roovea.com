@@ -53,6 +53,35 @@ export function slugify(value: string) {
     .replace(/^-+|-+$/g, "")
 }
 
+export function buildAutomaticRoomSeo(room: Room) {
+  const location = [room.location.districtCity, room.location.provinceCity]
+    .filter(Boolean)
+    .join(", ")
+  const slugBase = slugify(room.name) || slugify(room.roomCode) || "phong"
+  const slugCode =
+    slugify(room.roomCode.replace(/^PH-/, "")) || slugify(room.roomCode)
+  const descriptionParts = [
+    room.description,
+    location,
+    room.capacity.maxGuests > 0 ? `${room.capacity.maxGuests} khách` : "",
+  ].filter(Boolean)
+  const metaDescription = descriptionParts.join(" - ").slice(0, 155)
+
+  return {
+    slug: slugCode ? `${slugBase}-${slugCode}` : slugBase,
+    metaTitle: room.name || room.roomCode,
+    metaDescription,
+    shareThumbnailImageId: getRoomThumbnail(room)?.id,
+  }
+}
+
+export function withAutomaticRoomSeo(room: Room): Room {
+  return {
+    ...room,
+    seo: buildAutomaticRoomSeo(room),
+  }
+}
+
 export function calculateCommissionAmount(
   supplierPrice: number,
   commissionType: CommissionType,

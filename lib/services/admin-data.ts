@@ -16,6 +16,7 @@ import {
   getNextSupplierSequence,
   makeId,
   resolveRoomStatus,
+  withAutomaticRoomSeo,
 } from "@/lib/admin/helpers"
 import { seedRooms, seedSuppliers } from "@/lib/admin/mock-data"
 import type {
@@ -94,7 +95,6 @@ function roomToAdmin(row: RoomRow, mediaRows: RoomMediaRow[]): Room {
     status: row.status,
     accommodationTypes: row.accommodationTypes ?? [],
     otherAccommodationType: row.otherAccommodationType ?? "",
-    spaceType: row.spaceType ?? "entire_place",
     description: row.description,
     areaM2: row.areaM2 ?? undefined,
     capacity: {
@@ -102,7 +102,6 @@ function roomToAdmin(row: RoomRow, mediaRows: RoomMediaRow[]): Room {
       bedrooms: row.bedrooms,
       bathrooms: row.bathrooms,
       beds: row.beds,
-      bedTypes: row.bedTypes ?? [],
     },
     supplierId: row.supplierId ?? undefined,
     pricing: {
@@ -250,11 +249,11 @@ async function replaceRoomMedia(room: Room) {
 
 export async function upsertRoom(roomInput: unknown, actorEmail: string) {
   const parsed = roomSchema.parse(roomInput) as Room
-  const room = {
+  const room = withAutomaticRoomSeo({
     ...parsed,
     description: stripHtml(parsed.description),
     status: resolveRoomStatus(parsed, parsed.status),
-  }
+  })
   const now = new Date()
   const values = {
     id: room.id,
@@ -266,14 +265,12 @@ export async function upsertRoom(roomInput: unknown, actorEmail: string) {
     displayPriority: room.displayPriority,
     accommodationTypes: room.accommodationTypes,
     otherAccommodationType: room.otherAccommodationType,
-    spaceType: room.spaceType,
     description: room.description,
     areaM2: room.areaM2 ?? null,
     maxGuests: room.capacity.maxGuests,
     bedrooms: room.capacity.bedrooms,
     bathrooms: room.capacity.bathrooms,
     beds: room.capacity.beds,
-    bedTypes: room.capacity.bedTypes,
     supplierId: room.supplierId || null,
     supplierPrice: String(room.pricing.supplierPrice),
     commissionType: room.pricing.commissionType,
@@ -319,14 +316,12 @@ export async function upsertRoom(roomInput: unknown, actorEmail: string) {
         displayPriority: values.displayPriority,
         accommodationTypes: values.accommodationTypes,
         otherAccommodationType: values.otherAccommodationType,
-        spaceType: values.spaceType,
         description: values.description,
         areaM2: values.areaM2,
         maxGuests: values.maxGuests,
         bedrooms: values.bedrooms,
         bathrooms: values.bathrooms,
         beds: values.beds,
-        bedTypes: values.bedTypes,
         supplierId: values.supplierId,
         supplierPrice: values.supplierPrice,
         commissionType: values.commissionType,

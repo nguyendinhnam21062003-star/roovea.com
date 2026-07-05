@@ -120,7 +120,6 @@ export function buildEmptyRoom(roomCode: string): Room {
     status: "draft",
     accommodationTypes: [],
     otherAccommodationType: "",
-    spaceType: "entire_place",
     description: "",
     areaM2: undefined,
     capacity: {
@@ -128,7 +127,6 @@ export function buildEmptyRoom(roomCode: string): Room {
       bedrooms: 0,
       bathrooms: 0,
       beds: 0,
-      bedTypes: [],
     },
     supplierId: undefined,
     pricing: {

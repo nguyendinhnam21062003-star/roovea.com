@@ -14,7 +14,6 @@ import {
 
 import type {
   AccommodationType,
-  BedType,
   CancellationPolicy,
   DistanceToCenter,
   Gender,
@@ -23,7 +22,6 @@ import type {
   ServiceArea,
   ServiceType,
   SmokingPolicy,
-  SpaceType,
 } from "../lib/admin/types"
 
 export const roomStatusEnum = pgEnum("room_status", [
@@ -113,14 +111,12 @@ export const rooms = pgTable(
       .$type<AccommodationType[]>()
       .notNull(),
     otherAccommodationType: text("other_accommodation_type"),
-    spaceType: varchar("space_type", { length: 32 }).$type<SpaceType>(),
     description: text("description").notNull(),
     areaM2: integer("area_m2"),
     maxGuests: integer("max_guests").notNull().default(1),
     bedrooms: integer("bedrooms").notNull().default(0),
     bathrooms: integer("bathrooms").notNull().default(0),
     beds: integer("beds").notNull().default(0),
-    bedTypes: jsonb("bed_types").$type<BedType[]>().notNull(),
     supplierId: text("supplier_id").references(() => suppliers.id),
     supplierPrice: numeric("supplier_price", {
       precision: 14,

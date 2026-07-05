@@ -156,7 +156,10 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
   const [featuredCanScrollNext, setFeaturedCanScrollNext] = useState(false)
   const featuredScrollRef = useRef<HTMLDivElement>(null)
 
-  const heroImage = getPrimaryRoomMedia(rooms[0]?.media ?? [])
+  const heroImage = {
+    src: "/brand/roovea-hero.png",
+    alt: "Villa nghỉ dưỡng ven biển với hồ bơi và không gian lưu trú hiện đại",
+  }
   const featuredRooms = useMemo(
     () => rooms.filter((room) => room.featured).slice(0, 6),
     [rooms]
@@ -397,32 +400,41 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
           className="pointer-events-none object-cover"
           sizes="100vw"
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/95 via-background/72 to-background/20" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-background/60 via-transparent to-background/20" />
-        <div className="relative mx-auto flex min-h-[680px] w-full max-w-7xl flex-col justify-center gap-10 px-4 pt-24 pb-10 sm:px-6 lg:min-h-[700px] lg:px-8">
-          <div className="flex max-w-3xl flex-col gap-6">
-            <Badge variant="secondary" className="w-fit">
-              Chỗ ở được chọn lọc
-            </Badge>
-            <div className="flex flex-col gap-4">
-              <h1 className="font-heading text-5xl leading-tight font-semibold sm:text-6xl lg:text-7xl">
-                Roovea.com
-                <span className="block text-primary">Tìm chỗ ở lý tưởng</span>
-              </h1>
-              <p className="max-w-2xl text-base leading-7 font-medium text-foreground sm:text-lg">
-                Khám phá phòng, homestay, căn hộ và villa phù hợp với mã phòng
-                rõ ràng, thông tin dễ kiểm tra và liên hệ tư vấn nhanh.
-              </p>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#062514]/85 via-[#062514]/46 to-[#062514]/8" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#062514]/35 via-transparent to-transparent" />
+        <div className="relative mx-auto flex min-h-[640px] w-full max-w-7xl flex-col justify-center gap-8 px-4 pt-24 pb-10 sm:px-6 lg:min-h-[680px] lg:px-8">
+          <div className="flex max-w-2xl flex-col gap-6">
+            <div className="flex items-center gap-3">
+              <Image
+                src="/brand/roovea-logo.png"
+                alt=""
+                width={56}
+                height={56}
+                className="size-14 border border-background/60 object-cover shadow-md"
+              />
+              <div className="flex min-w-0 flex-col gap-1">
+                <p className="font-heading text-lg font-semibold text-white">
+                  ROOVEA
+                </p>
+                <p className="text-sm font-semibold text-emerald-100">
+                  | Better Places, Better Stays.
+                </p>
+              </div>
             </div>
-            <div className="grid max-w-2xl grid-cols-3 gap-2 text-xs sm:text-sm">
-              <HeroMetric value={`${rooms.length}+`} label="phòng mẫu" />
-              <HeroMetric value="5 chữ số" label="mã tìm nhanh" />
-              <HeroMetric value="1 link" label="share chi tiết" />
+            <div className="flex flex-col gap-4">
+              <h1 className="max-w-3xl font-heading text-4xl leading-tight font-semibold text-white sm:text-5xl lg:text-6xl">
+                Khám phá nơi lưu trú phù hợp cho mọi chuyến đi
+              </h1>
+              <p className="max-w-xl text-base leading-7 font-medium text-white/88 sm:text-lg">
+                Tìm kiếm, so sánh và đặt khách sạn, homestay cùng nhiều lựa chọn
+                lưu trú chất lượng trên một nền tảng, giúp chuyến đi của bạn trở
+                nên đơn giản và thuận tiện hơn.
+              </p>
             </div>
           </div>
 
           <form
-            className="w-full border bg-card/95 p-3 shadow-xl backdrop-blur"
+            className="w-full border bg-card/92 p-3 shadow-xl"
             onSubmit={submitHeroSearch}
           >
             <FieldGroup className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_minmax(150px,0.65fr)_minmax(150px,0.65fr)_auto] md:items-end">
@@ -1197,15 +1209,6 @@ function RoomQuickView({
         ) : null}
       </DrawerContent>
     </Drawer>
-  )
-}
-
-function HeroMetric({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1 border bg-card px-3 py-3">
-      <span className="font-heading text-lg font-semibold">{value}</span>
-      <span className="truncate text-muted-foreground">{label}</span>
-    </div>
   )
 }
 

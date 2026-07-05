@@ -8,6 +8,13 @@
       "when": 1783063740941,
       "tag": "0000_narrow_lucky_pierre",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783233635107,
+      "tag": "0001_flimsy_stryfe",
+      "breakpoints": true
     }
   ]
 }

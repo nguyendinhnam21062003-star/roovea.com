@@ -34,7 +34,6 @@ export const roomSchema = z.object({
     bathrooms: z.number().int().min(0).default(0),
     bedrooms: z.number().int().min(0).default(0),
     beds: z.number().int().min(0).default(0),
-    bedTypes: z.array(z.string()).default([]),
     maxGuests: z.number().int().min(1).max(99).default(1),
   }),
   createdBy: z.string().trim().optional().default("Admin"),
@@ -88,13 +87,14 @@ export const roomSchema = z.object({
     supplierPrice: z.number().min(0),
   }),
   roomCode: nonEmptyString,
-  seo: z.object({
-    metaDescription: z.string().trim().optional().default(""),
-    metaTitle: z.string().trim().optional().default(""),
-    shareThumbnailImageId: z.string().trim().optional(),
-    slug: nonEmptyString,
-  }),
-  spaceType: z.string().trim().default("entire_place"),
+  seo: z
+    .object({
+      metaDescription: z.string().trim().optional().default(""),
+      metaTitle: z.string().trim().optional().default(""),
+      shareThumbnailImageId: z.string().trim().optional(),
+      slug: z.string().trim().optional().default(""),
+    })
+    .default({ metaDescription: "", metaTitle: "", slug: "" }),
   status: z.enum([
     "draft",
     "pending_completion",

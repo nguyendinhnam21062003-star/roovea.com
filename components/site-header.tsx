@@ -1,3 +1,4 @@
+import Image from "next/image"
 import Link from "next/link"
 
 import { ContactActions } from "@/components/contact-actions"
@@ -23,8 +24,18 @@ export function SiteHeader({ className }: SiteHeaderProps) {
       className={cn("sticky top-0 z-40 border-b bg-background", className)}
     >
       <div className="mx-auto flex min-h-14 w-full max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="font-heading text-base font-semibold">
-          Roovea.com
+        <Link
+          href="/"
+          className="flex shrink-0 items-center gap-2 font-heading text-base font-semibold"
+        >
+          <Image
+            src="/brand/roovea-logo.png"
+            alt="Roovea"
+            width={32}
+            height={32}
+            className="size-8 border object-cover"
+          />
+          <span>Roovea</span>
         </Link>
         <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 lg:flex">
           {navItems.map((item) => (

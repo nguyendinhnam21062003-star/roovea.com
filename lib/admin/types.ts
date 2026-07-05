@@ -14,11 +14,6 @@ export type AccommodationType =
   | "studio"
   | "other"
 
-export type SpaceType = "entire_place" | "private_room" | "shared_room"
-
-export type BedType =
-  "single_bed" | "double_bed" | "king_bed" | "sofa_bed" | "other"
-
 export type CommissionType = "percentage" | "fixed"
 
 export type PriceUnit = "per_night" | "per_hour"
@@ -108,7 +103,6 @@ export type RoomCapacity = {
   bedrooms: number
   bathrooms: number
   beds: number
-  bedTypes: BedType[]
 }
 
 export type Room = {
@@ -118,7 +112,6 @@ export type Room = {
   status: RoomStatus
   accommodationTypes: AccommodationType[]
   otherAccommodationType: string
-  spaceType: SpaceType
   description: string
   areaM2?: number
   capacity: RoomCapacity

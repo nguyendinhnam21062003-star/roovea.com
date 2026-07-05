@@ -21,8 +21,8 @@ import {
   hasUnsafeHtml,
   isWhitelistedVideoUrl,
   makeId,
-  slugify,
   todayIso,
+  withAutomaticRoomSeo,
 } from "@/lib/admin/helpers"
 import {
   accommodationTypeLabels,
@@ -32,15 +32,10 @@ import {
 import { useAdminStore } from "@/lib/admin/store"
 import type {
   AccommodationType,
-  BedType,
-  CancellationPolicy,
   DistanceToCenter,
-  PetsPolicy,
   PriceUnit,
   Room,
   RoomImage,
-  SmokingPolicy,
-  SpaceType,
 } from "@/lib/admin/types"
 
 type JsonRoomImportProps = {
@@ -53,15 +48,12 @@ const sampleJson = `{
   "roomCode": "HL-SEA-001",
   "accommodationTypes": ["homestay"],
   "otherAccommodationType": "",
-  "spaceType": "entire_place",
   "description": "Phòng gần biển, phù hợp cho nhóm bạn hoặc gia đình nhỏ.",
   "areaM2": 35,
   "capacity": {
     "maxGuests": 4,
     "bedrooms": 1,
-    "bathrooms": 1,
-    "beds": 2,
-    "bedTypes": ["double_bed"]
+    "bathrooms": 1
   },
   "supplier": {
     "supplierCode": "NCC-000001",
@@ -86,30 +78,13 @@ const sampleJson = `{
   },
   "policies": {
     "checkInTime": "14:00",
-    "checkOutTime": "12:00",
-    "smoking": "not_allowed",
-    "pets": "conditional",
-    "cancellationType": "conditional",
-    "cancellationDetail": "Hủy trước 3 ngày được hoàn cọc 90%.",
-    "depositRequired": true,
-    "depositDetail": "Đặt cọc 30% để giữ phòng.",
-    "minimumNights": 1,
-    "quietHours": "",
-    "otherPolicy": ""
+    "checkOutTime": "12:00"
   },
-  "amenities": ["free_wifi", "air_conditioning", "free_parking"],
-  "customAmenities": [],
   "media": {
     "images": [],
     "videoUrls": []
   },
-  "seo": {
-    "slug": "homestay-view-bien-ha-long",
-    "metaTitle": "",
-    "metaDescription": ""
-  },
-  "isFeatured": false,
-  "displayPriority": 0
+  "isFeatured": false
 }`
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -429,7 +404,6 @@ function mapJsonToRoom(
   const location = isRecord(record.location) ? record.location : {}
   const policies = isRecord(record.policies) ? record.policies : {}
   const media = isRecord(record.media) ? record.media : {}
-  const seo = isRecord(record.seo) ? record.seo : {}
   const now = todayIso()
   const matchedSupplier = suppliers.find(
     (supplier) =>
@@ -437,7 +411,7 @@ function mapJsonToRoom(
   )
   const images = mapJsonImages(media.images)
 
-  const room: Room = {
+  const room: Room = withAutomaticRoomSeo({
     id: "",
     roomCode:
       stringValue(record.roomCode, fallbackRoomCode) || fallbackRoomCode,
@@ -447,8 +421,6 @@ function mapJsonToRoom(
       record.accommodationTypes
     ) as AccommodationType[],
     otherAccommodationType: stringValue(record.otherAccommodationType),
-    spaceType: (stringValue(record.spaceType, "entire_place") ||
-      "entire_place") as SpaceType,
     description: stringValue(record.description).slice(0, 150),
     areaM2: numberValue(record.areaM2) || undefined,
     capacity: {
@@ -456,7 +428,6 @@ function mapJsonToRoom(
       bedrooms: numberValue(capacity.bedrooms),
       bathrooms: numberValue(capacity.bathrooms),
       beds: numberValue(capacity.beds),
-      bedTypes: stringArray(capacity.bedTypes) as BedType[],
     },
     supplierId: matchedSupplier?.id,
     pricing: {
@@ -486,40 +457,34 @@ function mapJsonToRoom(
     policies: {
       checkInTime: stringValue(policies.checkInTime),
       checkOutTime: stringValue(policies.checkOutTime),
-      smoking: (stringValue(policies.smoking, "not_allowed") ||
-        "not_allowed") as SmokingPolicy,
-      pets: (stringValue(policies.pets, "not_allowed") ||
-        "not_allowed") as PetsPolicy,
-      cancellationType: (stringValue(
-        policies.cancellationType,
-        "conditional"
-      ) || "conditional") as CancellationPolicy,
-      cancellationDetail: stringValue(policies.cancellationDetail),
-      depositRequired: Boolean(policies.depositRequired),
-      depositDetail: stringValue(policies.depositDetail),
-      minimumNights: numberValue(policies.minimumNights, 1),
-      quietHours: stringValue(policies.quietHours),
-      otherPolicy: stringValue(policies.otherPolicy),
+      smoking: "not_allowed",
+      pets: "not_allowed",
+      cancellationType: "conditional",
+      cancellationDetail: "",
+      depositRequired: false,
+      depositDetail: "",
+      minimumNights: 1,
+      quietHours: "",
+      otherPolicy: "",
     },
-    amenities: stringArray(record.amenities),
-    customAmenities: stringArray(record.customAmenities),
+    amenities: [],
+    customAmenities: [],
     media: {
       images,
       videoUrls: stringArray(media.videoUrls),
     },
     seo: {
-      slug: stringValue(seo.slug) || slugify(stringValue(record.name)),
-      metaTitle: stringValue(seo.metaTitle),
-      metaDescription: stringValue(seo.metaDescription),
-      shareThumbnailImageId: images[0]?.id,
+      slug: "",
+      metaTitle: "",
+      metaDescription: "",
     },
     isFeatured: Boolean(record.isFeatured),
-    displayPriority: numberValue(record.displayPriority),
+    displayPriority: 0,
     createdAt: now,
     updatedAt: now,
     createdBy: "Admin Demo",
     updatedBy: "Admin Demo",
-  }
+  })
 
   room.status = getRoomCompletion(room).missing.length
     ? "pending_completion"
