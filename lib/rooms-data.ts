@@ -64,6 +64,8 @@ function mapDemoPublicRoom(room: Room): PublicRoom {
     googleMapUrl: room.location.googleMapsUrl,
     updatedAt: room.updatedAt,
     featured: room.isFeatured,
+    accommodationTypes: room.accommodationTypes,
+    otherAccommodationType: room.otherAccommodationType,
     bedrooms: room.capacity.bedrooms,
     guests: room.capacity.maxGuests,
     area: room.areaM2
@@ -129,6 +131,8 @@ function mapPublicRoom(row: RoomRow, mediaRows: MediaRow[]): PublicRoom {
     googleMapUrl: row.googleMapsUrl ?? "",
     updatedAt: updatedIso(row.updatedAt),
     featured: row.isFeatured,
+    accommodationTypes: row.accommodationTypes,
+    otherAccommodationType: row.otherAccommodationType ?? undefined,
     bedrooms: row.bedrooms,
     guests: row.maxGuests,
     area: row.areaM2 ? `${row.areaM2} m2` : `${row.bedrooms} phòng ngủ`,
