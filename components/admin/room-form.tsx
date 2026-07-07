@@ -12,7 +12,6 @@ import {
   ImageSquareIcon,
   PlusIcon,
   TrashIcon,
-  VideoCameraIcon,
   WarningCircleIcon,
   XIcon,
 } from "@phosphor-icons/react"
@@ -118,6 +117,12 @@ type RoomFormProps = {
 type RoomErrors = Record<string, string>
 
 const imageMimeTypes = ["image/jpeg", "image/png", "image/webp"]
+const timeHourOptions = Array.from({ length: 24 }, (_, index) =>
+  String(index).padStart(2, "0")
+)
+const timeMinuteOptions = Array.from({ length: 60 }, (_, index) =>
+  String(index).padStart(2, "0")
+)
 
 function toggleValue<T extends string>(
   values: T[],
@@ -129,6 +134,12 @@ function toggleValue<T extends string>(
   }
 
   return values.filter((item) => item !== value)
+}
+
+function splitTimeValue(value: string) {
+  const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/)
+
+  return match ? { hour: match[1], minute: match[2] } : { hour: "", minute: "" }
 }
 
 function validateRoom(room: Room, saveAsDraft: boolean) {
@@ -155,6 +166,15 @@ function validateRoom(room: Room, saveAsDraft: boolean) {
     room.pricing.strikethroughPrice <= room.pricing.referencePrice
   ) {
     errors.strikethroughPrice = "Giá gạch ngang phải lớn hơn giá tham khảo."
+  }
+
+  const invalidVideoUrl = room.media.videoUrls.find(
+    (url) => !isWhitelistedVideoUrl(url)
+  )
+
+  if (invalidVideoUrl) {
+    errors.videoUrls =
+      "Chỉ nhận URL YouTube, TikTok, Vimeo hoặc Google Drive, mỗi dòng là một URL."
   }
 
   if (room.location.googleMapsUrl && !isValidUrl(room.location.googleMapsUrl)) {
@@ -205,7 +225,9 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
   const [supplierPickerOpen, setSupplierPickerOpen] = useState(false)
   const [supplierQuery, setSupplierQuery] = useState("")
   const [quickSupplierOpen, setQuickSupplierOpen] = useState(false)
-  const [videoUrl, setVideoUrl] = useState("")
+  const [videoUrlText, setVideoUrlText] = useState(() =>
+    room.media.videoUrls.join("\n")
+  )
   const [videoError, setVideoError] = useState("")
   const [draggingImageId, setDraggingImageId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -221,6 +243,7 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
     draft.pricing.commissionValue
   )
   const expectedProfit = calculateExpectedProfit(draft.pricing)
+  const videoUrlError = errors.videoUrls || videoError
 
   const supplierResults = useMemo(() => {
     const normalizedQuery = supplierQuery.trim().toLowerCase()
@@ -313,7 +336,10 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
       const saved = await onSave(nextRoom)
 
       if (saved) {
-        setDraft(JSON.parse(JSON.stringify(saved)))
+        const savedDraft = JSON.parse(JSON.stringify(saved)) as Room
+
+        setDraft(savedDraft)
+        setVideoUrlText(savedDraft.media.videoUrls.join("\n"))
         setNotice("Đã lưu thay đổi vào database.")
       }
     } catch (error) {
@@ -534,27 +560,50 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
     setDraggingImageId(null)
   }
 
-  function addVideoUrl() {
-    const value = videoUrl.trim()
-
-    if (!isWhitelistedVideoUrl(value)) {
-      setVideoError(
-        "Chỉ nhận URL YouTube, TikTok, Vimeo hoặc Google Drive, không nhận iframe/script."
+  function parseVideoUrlLines(value: string) {
+    return Array.from(
+      new Set(
+        value
+          .split(/\r?\n/)
+          .map((item) => item.trim())
+          .filter(Boolean)
       )
-      return
-    }
+    )
+  }
 
+  function updateVideoUrlText(value: string) {
+    const urls = parseVideoUrlLines(value)
+    const invalidUrl = urls.find((url) => !isWhitelistedVideoUrl(url))
+
+    setVideoUrlText(value)
+    setVideoError(
+      invalidUrl
+        ? "Chỉ nhận URL YouTube, TikTok, Vimeo hoặc Google Drive, mỗi dòng là một URL."
+        : ""
+    )
+    clearError("videoUrls")
     setDraft((current) => ({
       ...current,
       media: {
         ...current.media,
-        videoUrls: current.media.videoUrls.includes(value)
-          ? current.media.videoUrls
-          : [...current.media.videoUrls, value],
+        videoUrls: urls,
       },
     }))
-    setVideoUrl("")
+  }
+
+  function removeVideoUrl(url: string) {
+    const urls = draft.media.videoUrls.filter((item) => item !== url)
+
+    setVideoUrlText(urls.join("\n"))
     setVideoError("")
+    clearError("videoUrls")
+    setDraft((current) => ({
+      ...current,
+      media: {
+        ...current.media,
+        videoUrls: urls,
+      },
+    }))
   }
 
   async function createQuickSupplier(
@@ -691,12 +740,14 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                 <Input
                   id="room-code"
                   value={draft.roomCode}
-                  onChange={(event) => {
-                    updateRoom({ roomCode: event.target.value })
-                    clearError("roomCode")
-                  }}
+                  readOnly
+                  aria-readonly="true"
                   aria-invalid={Boolean(errors.roomCode)}
+                  className="bg-muted text-muted-foreground"
                 />
+                <FieldDescription>
+                  Mã phòng do hệ thống tự tạo và không thể chỉnh sửa.
+                </FieldDescription>
                 <FieldError>{errors.roomCode}</FieldError>
               </Field>
               <Field
@@ -720,7 +771,9 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                     clearError("accommodationTypes")
                   }}
                 />
-                <FieldDescription>Chọn tối đa 3 loại hình.</FieldDescription>
+                <FieldDescription>
+                  Chọn tối đa 3 loại hình phù hợp với phòng.
+                </FieldDescription>
                 <FieldError>{errors.accommodationTypes}</FieldError>
               </Field>
               {draft.accommodationTypes.includes("other") ? (
@@ -1056,6 +1109,11 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                   }
                   aria-invalid={Boolean(errors.strikethroughPrice)}
                 />
+                <FieldDescription>
+                  {draft.pricing.strikethroughPrice
+                    ? formatCurrency(draft.pricing.strikethroughPrice)
+                    : "Chưa khai báo giá gạch ngang."}
+                </FieldDescription>
                 <FieldError>{errors.strikethroughPrice}</FieldError>
               </Field>
               <Field>
@@ -1216,25 +1274,20 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                 </p>
               </div>
             )}
-            <Field data-invalid={Boolean(videoError)}>
+            <Field data-invalid={Boolean(videoUrlError)}>
               <FieldLabel htmlFor="video-url">URL video</FieldLabel>
-              <div className="flex flex-col gap-2 md:flex-row">
-                <Input
-                  id="video-url"
-                  value={videoUrl}
-                  onChange={(event) => {
-                    setVideoUrl(event.target.value)
-                    setVideoError("")
-                  }}
-                  placeholder="YouTube, TikTok, Vimeo hoặc Google Drive"
-                  aria-invalid={Boolean(videoError)}
-                />
-                <Button type="button" variant="outline" onClick={addVideoUrl}>
-                  <VideoCameraIcon data-icon="inline-start" />
-                  Thêm URL
-                </Button>
-              </div>
-              <FieldError>{videoError}</FieldError>
+              <Textarea
+                id="video-url"
+                value={videoUrlText}
+                onChange={(event) => updateVideoUrlText(event.target.value)}
+                placeholder="Mỗi dòng là một URL YouTube, TikTok, Vimeo hoặc Google Drive"
+                aria-invalid={Boolean(videoUrlError)}
+                className="min-h-28"
+              />
+              <FieldDescription>
+                Mỗi dòng được tính là một link video riêng.
+              </FieldDescription>
+              <FieldError>{videoUrlError}</FieldError>
             </Field>
             <div className="flex flex-wrap gap-2">
               {draft.media.videoUrls.map((url) => (
@@ -1243,17 +1296,7 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                   <button
                     type="button"
                     aria-label="Xóa video"
-                    onClick={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        media: {
-                          ...current.media,
-                          videoUrls: current.media.videoUrls.filter(
-                            (item) => item !== url
-                          ),
-                        },
-                      }))
-                    }
+                    onClick={() => removeVideoUrl(url)}
                   >
                     <XIcon data-icon="inline-end" />
                   </button>
@@ -1430,36 +1473,26 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
           </CardHeader>
           <CardContent>
             <FieldGroup className="grid gap-4 lg:grid-cols-2">
-              <Field data-invalid={Boolean(errors.checkInTime)}>
-                <FieldLabel htmlFor="check-in">Giờ nhận phòng</FieldLabel>
-                <Input
-                  id="check-in"
-                  type="time"
-                  step={60}
-                  value={draft.policies.checkInTime}
-                  onChange={(event) => {
-                    updatePolicies({ checkInTime: event.target.value })
-                    clearError("checkInTime")
-                  }}
-                  aria-invalid={Boolean(errors.checkInTime)}
-                />
-                <FieldError>{errors.checkInTime}</FieldError>
-              </Field>
-              <Field data-invalid={Boolean(errors.checkOutTime)}>
-                <FieldLabel htmlFor="check-out">Giờ trả phòng</FieldLabel>
-                <Input
-                  id="check-out"
-                  type="time"
-                  step={60}
-                  value={draft.policies.checkOutTime}
-                  onChange={(event) => {
-                    updatePolicies({ checkOutTime: event.target.value })
-                    clearError("checkOutTime")
-                  }}
-                  aria-invalid={Boolean(errors.checkOutTime)}
-                />
-                <FieldError>{errors.checkOutTime}</FieldError>
-              </Field>
+              <TimePickerField
+                idPrefix="check-in"
+                label="Giờ nhận phòng"
+                value={draft.policies.checkInTime}
+                error={errors.checkInTime}
+                onChange={(value) => {
+                  updatePolicies({ checkInTime: value })
+                  clearError("checkInTime")
+                }}
+              />
+              <TimePickerField
+                idPrefix="check-out"
+                label="Giờ trả phòng"
+                value={draft.policies.checkOutTime}
+                error={errors.checkOutTime}
+                onChange={(value) => {
+                  updatePolicies({ checkOutTime: value })
+                  clearError("checkOutTime")
+                }}
+              />
             </FieldGroup>
           </CardContent>
         </Card>
@@ -1596,6 +1629,69 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+function TimePickerField({
+  error,
+  idPrefix,
+  label,
+  onChange,
+  value,
+}: {
+  error?: string
+  idPrefix: string
+  label: string
+  onChange: (value: string) => void
+  value: string
+}) {
+  const { hour, minute } = splitTimeValue(value)
+
+  return (
+    <Field data-invalid={Boolean(error)}>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="grid grid-cols-2 gap-2">
+        <Select
+          value={hour || undefined}
+          onValueChange={(nextHour) =>
+            onChange(`${nextHour}:${minute || "00"}`)
+          }
+        >
+          <SelectTrigger id={`${idPrefix}-hour`} className="w-full">
+            <SelectValue placeholder="Giờ" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {timeHourOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Select
+          value={minute || undefined}
+          onValueChange={(nextMinute) =>
+            onChange(`${hour || "00"}:${nextMinute}`)
+          }
+        >
+          <SelectTrigger id={`${idPrefix}-minute`} className="w-full">
+            <SelectValue placeholder="Phút" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {timeMinuteOptions.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+      <FieldError>{error}</FieldError>
+    </Field>
   )
 }
 

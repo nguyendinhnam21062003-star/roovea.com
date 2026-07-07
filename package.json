@@ -11,11 +11,19 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
+    "db:local:init": "node scripts/local-postgres.mjs init",
+    "db:local:start": "node scripts/local-postgres.mjs start",
+    "db:local:status": "node scripts/local-postgres.mjs status",
+    "db:local:stop": "node scripts/local-postgres.mjs stop",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts",
-    "auth:hash": "node scripts/hash-admin-password.mjs"
+    "auth:hash": "node scripts/hash-admin-password.mjs",
+    "auth:setup": "node scripts/setup-admin-env.mjs",
+    "auth:secrets": "node scripts/generate-secrets.mjs",
+    "prod:check": "node scripts/check-production-readiness.mjs"
   },
   "dependencies": {
+    "@base-ui/react": "^1.6.0",
     "@phosphor-icons/react": "^2.1.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

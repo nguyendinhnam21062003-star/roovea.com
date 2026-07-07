@@ -15,6 +15,13 @@
       "when": 1783233635107,
       "tag": "0001_flimsy_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783350000000,
+      "tag": "0002_contact_channels",
+      "breakpoints": true
     }
   ]
 }

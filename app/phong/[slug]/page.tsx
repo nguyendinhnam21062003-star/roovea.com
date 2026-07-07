@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { formatCurrency } from "@/lib/format"
+import { getVideoEmbedUrl } from "@/lib/media"
 import {
   getAccommodationType,
   getBathroomCount,
@@ -126,9 +127,6 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
                   <span className="text-2xl font-semibold">
                     {formatCurrency(room.referencePrice)}
                   </span>
-                  {discount ? (
-                    <Badge variant="secondary">Giảm {discount.percent}%</Badge>
-                  ) : null}
                 </div>
                 <CardDescription>
                   <span className="line-through">
@@ -307,20 +305,36 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
-                {videos.map((item) => (
-                  <div
-                    key={item.src}
-                    className="aspect-video overflow-hidden bg-muted"
-                  >
-                    <iframe
-                      src={item.src}
-                      title={item.alt}
-                      className="h-full w-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                    />
-                  </div>
-                ))}
+                {videos.map((item) => {
+                  const embedUrl = getVideoEmbedUrl(item.src)
+
+                  return (
+                    <div
+                      key={item.src}
+                      className="aspect-video overflow-hidden bg-muted"
+                    >
+                      {embedUrl ? (
+                        <iframe
+                          src={embedUrl}
+                          title={item.alt}
+                          className="h-full w-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                          loading="lazy"
+                          referrerPolicy="strict-origin-when-cross-origin"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center">
+                          <Button asChild variant="secondary">
+                            <a href={item.src} target="_blank" rel="noreferrer">
+                              Mở video
+                            </a>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </CardContent>
             </Card>
           ) : null}

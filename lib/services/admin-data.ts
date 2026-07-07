@@ -12,6 +12,7 @@ import {
 } from "@/db/schema"
 import {
   copyRoomForDuplicate,
+  formatSequenceCode,
   getNextRoomSequence,
   getNextSupplierSequence,
   makeId,
@@ -28,6 +29,8 @@ import type {
 import { roomSchema, supplierSchema } from "@/lib/validation/admin"
 import { decryptField, encryptField } from "@/lib/security/field-encryption"
 import { stripHtml } from "@/lib/validation/shared"
+import { defaultContactChannels } from "@/lib/contact"
+import { listContactChannels } from "@/lib/services/contact-channels"
 
 type RoomRow = typeof rooms.$inferSelect
 type SupplierRow = typeof suppliers.$inferSelect
@@ -47,6 +50,17 @@ function numberFromDb(value: string | number | null | undefined) {
   }
 
   return Number(value)
+}
+
+function getNextRoomCodeFromRows(roomRows: Array<{ code: string }>) {
+  const nextSequence =
+    roomRows.reduce((max, room) => {
+      const match = room.code.match(/^PH-(\d+)$/)
+
+      return match ? Math.max(max, Number(match[1])) : max
+    }, 0) + 1
+
+  return formatSequenceCode("PH", nextSequence)
 }
 
 function supplierToAdmin(row: SupplierRow): Supplier {
@@ -174,9 +188,17 @@ export async function listAdminRooms() {
 }
 
 export async function getAdminBootstrapData() {
-  const [roomList, supplierList, newInquiryRows] = await Promise.all([
+  const [
+    roomList,
+    supplierList,
+    contactChannelList,
+    roomCodeRows,
+    newInquiryRows,
+  ] = await Promise.all([
     listAdminRooms(),
     listAdminSuppliers(),
+    listContactChannels(),
+    db.select({ code: rooms.code }).from(rooms),
     db
       .select({ count: sql<number>`count(*)::int` })
       .from(customerInquiries)
@@ -185,13 +207,14 @@ export async function getAdminBootstrapData() {
 
   return {
     databaseReady: true,
-    nextRoomCode: `PH-${String(getNextRoomSequence(roomList)).padStart(
-      6,
-      "0"
-    )}`,
+    nextRoomCode: getNextRoomCodeFromRows(roomCodeRows),
     nextSupplierCode: `NCC-${String(
       getNextSupplierSequence(supplierList)
     ).padStart(6, "0")}`,
+    contactChannels:
+      contactChannelList.length > 0
+        ? contactChannelList
+        : defaultContactChannels,
     rooms: roomList,
     suppliers: supplierList,
     unreadInquiryCount: newInquiryRows[0]?.count ?? 0,
@@ -208,6 +231,7 @@ export function getDemoAdminBootstrapData() {
       getNextSupplierSequence(seedSuppliers)
     ).padStart(6, "0")}`,
     rooms: seedRooms,
+    contactChannels: defaultContactChannels,
     suppliers: seedSuppliers.map((supplier) => ({
       ...supplier,
       citizenIdMasked: supplier.citizenId
@@ -249,8 +273,17 @@ async function replaceRoomMedia(room: Room) {
 
 export async function upsertRoom(roomInput: unknown, actorEmail: string) {
   const parsed = roomSchema.parse(roomInput) as Room
+  const existing = await db
+    .select({ code: rooms.code })
+    .from(rooms)
+    .where(eq(rooms.id, parsed.id))
+    .limit(1)
+  const roomCode =
+    existing[0]?.code ??
+    getNextRoomCodeFromRows(await db.select({ code: rooms.code }).from(rooms))
   const room = withAutomaticRoomSeo({
     ...parsed,
+    roomCode,
     description: stripHtml(parsed.description),
     status: resolveRoomStatus(parsed, parsed.status),
   })
@@ -372,7 +405,10 @@ export async function deleteRoom(id: string, actorEmail: string) {
 }
 
 export async function duplicateRoom(id: string, actorEmail: string) {
-  const roomList = await listAdminRooms()
+  const [roomList, roomCodeRows] = await Promise.all([
+    listAdminRooms(),
+    db.select({ code: rooms.code }).from(rooms),
+  ])
   const sourceRoom = roomList.find((room) => room.id === id)
 
   if (!sourceRoom) {
@@ -381,12 +417,15 @@ export async function duplicateRoom(id: string, actorEmail: string) {
 
   const duplicated = copyRoomForDuplicate(
     sourceRoom,
-    `PH-${String(getNextRoomSequence(roomList)).padStart(6, "0")}`
+    getNextRoomCodeFromRows(roomCodeRows)
   )
-  await upsertRoom({ ...duplicated, updatedBy: actorEmail }, actorEmail)
-  await writeAuditLog(actorEmail, "room", duplicated.id, "duplicate", ["id"])
+  const savedRoom = await upsertRoom(
+    { ...duplicated, updatedBy: actorEmail },
+    actorEmail
+  )
+  await writeAuditLog(actorEmail, "room", savedRoom.id, "duplicate", ["id"])
 
-  return duplicated
+  return savedRoom
 }
 
 export async function upsertSupplier(

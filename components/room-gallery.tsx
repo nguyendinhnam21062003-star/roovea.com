@@ -13,6 +13,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { getVideoEmbedUrl } from "@/lib/media"
 import { type RoomMedia } from "@/lib/rooms"
 
 type RoomGalleryProps = {
@@ -21,10 +23,31 @@ type RoomGalleryProps = {
   roomName: string
 }
 
+type EmbeddableVideo = RoomMedia & {
+  embedUrl: string
+}
+
+function getEmbeddableVideos(media: RoomMedia[]): EmbeddableVideo[] {
+  return media.flatMap((item) => {
+    if (item.type !== "video") {
+      return []
+    }
+
+    const embedUrl = getVideoEmbedUrl(item.src)
+
+    return embedUrl ? [{ ...item, embedUrl }] : []
+  })
+}
+
 export function RoomGallery({ media, roomCode, roomName }: RoomGalleryProps) {
   const images = media.filter((item) => item.type === "image")
-  const videos = media.filter((item) => item.type === "video")
+  const videos = getEmbeddableVideos(media)
   const primaryImage = images[0]
+  const previewImages = images.slice(1, 4)
+  const remainingImageCount = Math.max(
+    images.length - 1 - previewImages.length,
+    0
+  )
 
   return (
     <Dialog>
@@ -53,20 +76,35 @@ export function RoomGallery({ media, roomCode, roomName }: RoomGalleryProps) {
             >
               <ImageIcon data-icon="inline-start" />
               Xem tất cả
+              {remainingImageCount > 0
+                ? ` | ${remainingImageCount} ảnh còn lại`
+                : ""}
             </Button>
           </DialogTrigger>
         </div>
         <div className="grid grid-cols-3 gap-2 md:grid-cols-1">
-          {images.slice(1, 4).map((item) => (
-            <GalleryPreview key={item.src} media={item} roomName={roomName} />
+          {previewImages.map((item, index) => (
+            <GalleryPreview
+              key={item.src}
+              media={item}
+              roomName={roomName}
+              remainingImageCount={
+                index === previewImages.length - 1 ? remainingImageCount : 0
+              }
+            />
           ))}
           {videos.slice(0, 1).map((item) => (
-            <GalleryPreview key={item.src} media={item} roomName={roomName} />
+            <GalleryPreview
+              key={item.src}
+              media={item}
+              roomName={roomName}
+              embedUrl={item.embedUrl}
+            />
           ))}
         </div>
       </div>
 
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
+      <DialogContent className="grid max-h-[90vh] grid-rows-[auto_minmax(0,1fr)] sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>Tất cả ảnh phòng</DialogTitle>
           <DialogDescription>
@@ -74,36 +112,40 @@ export function RoomGallery({ media, roomCode, roomName }: RoomGalleryProps) {
             {videos.length > 0 ? ` · ${videos.length} video` : ""}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {images.map((item) => (
-            <div
-              key={item.src}
-              className="relative aspect-[4/3] overflow-hidden bg-muted"
-            >
-              <Image
-                src={item.src}
-                alt={`${roomName} - ${item.alt}`}
-                fill
-                className="object-cover"
-                sizes="(min-width: 768px) 45vw, 100vw"
-              />
-            </div>
-          ))}
-          {videos.map((item) => (
-            <div
-              key={item.src}
-              className="aspect-video overflow-hidden bg-muted"
-            >
-              <iframe
-                src={item.src}
-                title={item.alt}
-                className="h-full w-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </div>
-          ))}
-        </div>
+        <ScrollArea className="min-h-0 overflow-hidden">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {images.map((item) => (
+              <div
+                key={item.src}
+                className="relative aspect-[4/3] overflow-hidden bg-muted"
+              >
+                <Image
+                  src={item.src}
+                  alt={`${roomName} - ${item.alt}`}
+                  fill
+                  className="object-cover"
+                  sizes="(min-width: 768px) 45vw, 100vw"
+                />
+              </div>
+            ))}
+            {videos.map((item) => (
+              <div
+                key={item.src}
+                className="aspect-video overflow-hidden bg-muted"
+              >
+                <iframe
+                  src={item.embedUrl}
+                  title={item.alt}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   )
@@ -112,15 +154,34 @@ export function RoomGallery({ media, roomCode, roomName }: RoomGalleryProps) {
 function GalleryPreview({
   media,
   roomName,
+  embedUrl,
+  remainingImageCount = 0,
 }: {
   media: RoomMedia
   roomName: string
+  embedUrl?: string
+  remainingImageCount?: number
 }) {
   if (media.type === "video") {
+    if (!embedUrl) {
+      return null
+    }
+
     return (
-      <div className="flex min-h-28 items-center justify-center bg-muted text-sm text-muted-foreground">
-        <VideoCameraIcon className="mr-2 size-4" />
-        Video
+      <div className="relative min-h-28 overflow-hidden bg-muted">
+        <iframe
+          src={embedUrl}
+          title={media.alt}
+          className="absolute inset-0 h-full w-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+        <div className="pointer-events-none absolute top-2 left-2 flex items-center gap-1 bg-background/90 px-2 py-1 text-xs font-medium shadow-sm">
+          <VideoCameraIcon className="size-3" />
+          Video
+        </div>
       </div>
     )
   }
@@ -134,6 +195,11 @@ function GalleryPreview({
         className="object-cover"
         sizes="(min-width: 768px) 18vw, 33vw"
       />
+      {remainingImageCount > 0 ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-foreground/45 px-3 text-center text-sm font-semibold text-background">
+          +{remainingImageCount} ảnh còn lại
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -11,7 +11,6 @@ import {
 import {
   copyRoomForDuplicate,
   formatSequenceCode,
-  getNextRoomSequence,
   getNextSupplierSequence,
   makeId,
   resolveRoomStatus,
@@ -23,6 +22,7 @@ import type {
   Supplier,
   SupplierStatus,
 } from "@/lib/admin/types"
+import { defaultContactChannels, type ContactChannel } from "@/lib/contact"
 
 export type AdminBootstrapData = {
   databaseMessage?: string
@@ -31,6 +31,7 @@ export type AdminBootstrapData = {
   suppliers: Supplier[]
   nextRoomCode: string
   nextSupplierCode: string
+  contactChannels: ContactChannel[]
   unreadInquiryCount: number
 }
 
@@ -43,8 +44,12 @@ type AdminStoreContextValue = {
   suppliers: Supplier[]
   nextRoomCode: string
   nextSupplierCode: string
+  contactChannels: ContactChannel[]
   unreadInquiryCount: number
   setUnreadInquiryCount: (count: number) => void
+  updateContactChannels: (
+    channels: ContactChannel[]
+  ) => Promise<ContactChannel[]>
   createRoom: (room: Room) => Promise<Room>
   updateRoom: (id: string, room: Room) => Promise<Room | null>
   deleteRoom: (id: string) => Promise<void>
@@ -72,6 +77,7 @@ function getEmptyBootstrap(): AdminBootstrapData {
     databaseReady: false,
     rooms: [],
     suppliers: [],
+    contactChannels: defaultContactChannels,
     nextRoomCode: "PH-000001",
     nextSupplierCode: "NCC-000001",
     unreadInquiryCount: 0,
@@ -102,8 +108,20 @@ async function adminRequest<T>(
   return payload as T
 }
 
-function nextRoomCode(rooms: Room[]) {
-  return formatSequenceCode("PH", getNextRoomSequence(rooms))
+function getRoomCodeSequence(roomCode: string) {
+  const match = roomCode.match(/^PH-(\d+)$/)
+
+  return match ? Number(match[1]) : 0
+}
+
+function advanceRoomCode(currentRoomCode: string, usedRoomCode: string) {
+  return formatSequenceCode(
+    "PH",
+    Math.max(
+      getRoomCodeSequence(currentRoomCode),
+      getRoomCodeSequence(usedRoomCode) + 1
+    )
+  )
 }
 
 function nextSupplierCode(suppliers: Supplier[]) {
@@ -231,6 +249,7 @@ export function AdminStoreProvider({
       suppliers: state.suppliers,
       nextRoomCode: state.nextRoomCode,
       nextSupplierCode: state.nextSupplierCode,
+      contactChannels: state.contactChannels,
       unreadInquiryCount: state.unreadInquiryCount,
       setUnreadInquiryCount(count) {
         setState((current) => ({
@@ -238,11 +257,27 @@ export function AdminStoreProvider({
           unreadInquiryCount: Math.max(0, count),
         }))
       },
+      async updateContactChannels(channels) {
+        const payload = await adminRequest<{
+          contactChannels: ContactChannel[]
+        }>("/api/admin/contact-channels", {
+          body: JSON.stringify(channels),
+          method: "PATCH",
+        })
+
+        setState((current) => ({
+          ...current,
+          contactChannels: payload.contactChannels,
+        }))
+
+        return payload.contactChannels
+      },
       async createRoom(room) {
         const now = todayIso()
         const roomToSave: Room = {
           ...room,
           id: room.id || makeId("room"),
+          roomCode: room.roomCode || state.nextRoomCode,
           status: resolveRoomStatus(room, room.status),
           createdAt: room.createdAt || now,
           updatedAt: now,
@@ -260,7 +295,10 @@ export function AdminStoreProvider({
           return {
             ...current,
             rooms,
-            nextRoomCode: nextRoomCode(rooms),
+            nextRoomCode: advanceRoomCode(
+              current.nextRoomCode,
+              payload.room.roomCode
+            ),
           }
         })
 
@@ -309,7 +347,7 @@ export function AdminStoreProvider({
           return {
             ...current,
             rooms,
-            nextRoomCode: nextRoomCode(rooms),
+            nextRoomCode: current.nextRoomCode,
           }
         })
       },
@@ -336,7 +374,10 @@ export function AdminStoreProvider({
           return {
             ...current,
             rooms,
-            nextRoomCode: nextRoomCode(rooms),
+            nextRoomCode: advanceRoomCode(
+              current.nextRoomCode,
+              duplicatedRoom.roomCode
+            ),
           }
         })
 

@@ -2,7 +2,9 @@ import type { Metadata } from "next"
 import { DM_Sans, Geist_Mono, Roboto } from "next/font/google"
 
 import "./globals.css"
+import { ContactSettingsProvider } from "@/components/contact-settings-provider"
 import { Toaster } from "@/components/ui/sonner"
+import { getPublicContactChannels } from "@/lib/services/contact-channels"
 import { cn } from "@/lib/utils"
 
 const robotoHeading = Roboto({
@@ -26,11 +28,15 @@ export const metadata: Metadata = {
     "Roovea.com giúp khách tìm nơi lưu trú, xem phòng nhanh và liên hệ tư vấn trực tiếp.",
 }
 
-export default function RootLayout({
+export const dynamic = "force-dynamic"
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const contactChannels = await getPublicContactChannels()
+
   return (
     <html
       lang="vi"
@@ -43,8 +49,10 @@ export default function RootLayout({
       )}
     >
       <body suppressHydrationWarning>
-        {children}
-        <Toaster />
+        <ContactSettingsProvider channels={contactChannels}>
+          {children}
+          <Toaster />
+        </ContactSettingsProvider>
       </body>
     </html>
   )

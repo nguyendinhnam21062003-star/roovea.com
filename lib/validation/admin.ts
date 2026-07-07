@@ -27,6 +27,24 @@ export const supplierSchema = z.object({
   zalo: z.string().trim().optional().default(""),
 })
 
+export const contactChannelSchema = z.object({
+  appendRoomMessage: z.boolean().default(false),
+  content: z.string().trim().min(1, "Nội dung hiển thị là bắt buộc."),
+  enabled: z.boolean().default(true),
+  external: z.boolean().default(false),
+  href: z.string().trim().min(1, "Link liên hệ là bắt buộc."),
+  id: nonEmptyString,
+  label: z.string().trim().min(1, "Tên kênh liên hệ là bắt buộc."),
+  logoAlt: z.string().trim().optional().default(""),
+  logoSrc: z.string().trim().optional().default(""),
+  sortOrder: z.number().int().min(0).default(0),
+  type: z.enum(["zalo", "facebook", "phone", "whatsapp", "email", "custom"]),
+})
+
+export const contactChannelsSchema = z
+  .array(contactChannelSchema)
+  .max(20, "Tối đa 20 kênh liên hệ.")
+
 export const roomSchema = z.object({
   accommodationTypes: z.array(z.string()).min(1).default([]),
   amenities: z.array(z.string()).default([]),

@@ -1,5 +1,16 @@
 import { defineConfig } from "drizzle-kit"
-import "dotenv/config"
+import * as nextEnv from "@next/env"
+
+const loadEnvConfig =
+  nextEnv.loadEnvConfig ??
+  (nextEnv as typeof nextEnv & { default?: typeof nextEnv }).default
+    ?.loadEnvConfig
+
+if (!loadEnvConfig) {
+  throw new Error("Cannot load Next.js environment variables.")
+}
+
+loadEnvConfig(process.cwd())
 
 export default defineConfig({
   schema: "./db/schema.ts",

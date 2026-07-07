@@ -1109,6 +1109,8 @@ export function RoomCard({
       : room.name
   const discount = getRoomDiscount(room)
   const [copiedCode, setCopiedCode] = useState(false)
+  const [localQuickViewOpen, setLocalQuickViewOpen] = useState(false)
+  const handleQuickView = onQuickView ?? (() => setLocalQuickViewOpen(true))
 
   async function copyRoomCode() {
     try {
@@ -1127,101 +1129,111 @@ export function RoomCard({
   }
 
   return (
-    <Card size="sm" className="pt-0">
-      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-        <Link href={`/phong/${room.slug}`} aria-label={`Xem ${room.name}`}>
-          <Image
-            src={image.src}
-            alt={image.alt}
-            fill
-            className="object-cover transition-transform duration-300 hover:scale-[1.03]"
-            sizes="(min-width: 1280px) 30vw, (min-width: 768px) 50vw, 100vw"
-          />
-        </Link>
-        <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-2">
-          {room.featured ? <Badge>Nổi bật</Badge> : null}
-          {discount ? (
-            <>
-              <Badge variant="secondary">Giảm {discount.percent}%</Badge>
-              <Badge variant="secondary">
-                Tiết kiệm {formatCurrency(discount.saving)}
-              </Badge>
-            </>
-          ) : null}
+    <>
+      <Card size="sm" className="pt-0">
+        <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+          <Link href={`/phong/${room.slug}`} aria-label={`Xem ${room.name}`}>
+            <Image
+              src={image.src}
+              alt={image.alt}
+              fill
+              className="object-cover transition-transform duration-300 hover:scale-[1.03]"
+              sizes="(min-width: 1280px) 30vw, (min-width: 768px) 50vw, 100vw"
+            />
+          </Link>
+          <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-2">
+            {room.featured ? <Badge>Nổi bật</Badge> : null}
+            {discount ? (
+              <>
+                <Badge variant="secondary">Giảm {discount.percent}%</Badge>
+                <Badge variant="secondary">
+                  Tiết kiệm {formatCurrency(discount.saving)}
+                </Badge>
+              </>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="absolute right-3 bottom-3 inline-flex h-7 max-w-[calc(100%-1.5rem)] items-center gap-1.5 border bg-background/95 px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
+            aria-label={`Sao chép mã phòng #${room.code}`}
+            title="Sao chép mã phòng"
+            onClick={copyRoomCode}
+          >
+            <span className="truncate">#{room.code}</span>
+            {copiedCode ? (
+              <CheckIcon data-icon="inline-end" />
+            ) : (
+              <CopyIcon data-icon="inline-end" />
+            )}
+          </button>
         </div>
-        <button
-          type="button"
-          className="absolute right-3 bottom-3 inline-flex h-7 max-w-[calc(100%-1.5rem)] items-center gap-1.5 border bg-background/95 px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
-          aria-label={`Sao chép mã phòng #${room.code}`}
-          title="Sao chép mã phòng"
-          onClick={copyRoomCode}
-        >
-          <span className="truncate">#{room.code}</span>
-          {copiedCode ? (
-            <CheckIcon data-icon="inline-end" />
-          ) : (
-            <CopyIcon data-icon="inline-end" />
-          )}
-        </button>
-      </div>
-      <CardHeader>
-        <CardTitle className="line-clamp-2">
-          <Link href={`/phong/${room.slug}`}>{title}</Link>
-        </CardTitle>
-        <CardDescription>
-          {room.locationLevel2}, {room.locationLevel1}
-        </CardDescription>
-        <CardAction>
-          <Badge variant="outline">
-            <StarIcon data-icon="inline-start" />
-            {getRoomScore(room)}
-          </Badge>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <p className="line-clamp-1 text-xs text-muted-foreground">
-          {room.address}
-        </p>
-        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <InlineFact icon={UsersThreeIcon} label={`${room.guests} khách`} />
-          <InlineFact icon={BedIcon} label={`${room.bedrooms} phòng ngủ`} />
-          <InlineFact
-            icon={BathtubIcon}
-            label={`${getBathroomCount(room)} phòng tắm`}
-          />
-        </div>
-      </CardContent>
-      <CardFooter className="flex-wrap justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground">Giá tham khảo</span>
-          <span className="text-base font-semibold">
-            {formatCurrency(room.referencePrice)}
-          </span>
-          <span className="text-xs text-muted-foreground line-through">
-            {formatCurrency(room.strikePrice)}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2 max-sm:w-full">
-          {onQuickView ? (
+        <CardHeader>
+          <CardTitle className="line-clamp-2">
+            <Link href={`/phong/${room.slug}`}>{title}</Link>
+          </CardTitle>
+          <CardDescription>
+            {room.locationLevel2}, {room.locationLevel1}
+          </CardDescription>
+          <CardAction>
+            <Badge variant="outline">
+              <StarIcon data-icon="inline-start" />
+              {getRoomScore(room)}
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <p className="line-clamp-1 text-xs text-muted-foreground">
+            {room.address}
+          </p>
+          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+            <InlineFact icon={UsersThreeIcon} label={`${room.guests} khách`} />
+            <InlineFact icon={BedIcon} label={`${room.bedrooms} phòng ngủ`} />
+            <InlineFact
+              icon={BathtubIcon}
+              label={`${getBathroomCount(room)} phòng tắm`}
+            />
+          </div>
+        </CardContent>
+        <CardFooter className="flex-wrap justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Giá tham khảo</span>
+            <span className="text-base font-semibold">
+              {formatCurrency(room.referencePrice)}
+            </span>
+            <span className="text-xs text-muted-foreground line-through">
+              {formatCurrency(room.strikePrice)}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2 max-sm:w-full">
             <Button
               type="button"
               variant="outline"
               className="max-sm:h-10 max-sm:flex-1"
-              onTouchEnd={(event) => runTouchAction(event, onQuickView)}
-              onClick={onQuickView}
+              onTouchEnd={(event) => runTouchAction(event, handleQuickView)}
+              onClick={handleQuickView}
             >
               Xem nhanh
             </Button>
-          ) : null}
-          <Button asChild className="max-sm:h-10 max-sm:flex-1">
-            <Link href={`/phong/${room.slug}`}>
-              Chi tiết
-              <ArrowRightIcon data-icon="inline-end" />
-            </Link>
-          </Button>
-        </div>
-      </CardFooter>
-    </Card>
+            <Button asChild className="max-sm:h-10 max-sm:flex-1">
+              <Link
+                href={`/phong/${room.slug}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Chi tiết
+                <ArrowRightIcon data-icon="inline-end" />
+              </Link>
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
+      {onQuickView ? null : (
+        <RoomQuickView
+          room={localQuickViewOpen ? room : null}
+          onOpenChange={setLocalQuickViewOpen}
+        />
+      )}
+    </>
   )
 }
 

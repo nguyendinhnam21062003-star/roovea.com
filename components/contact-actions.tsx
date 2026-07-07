@@ -6,10 +6,12 @@ import {
   ChatCircleTextIcon,
   EnvelopeIcon,
   type Icon,
+  MessengerLogoIcon,
   PhoneCallIcon,
   WhatsappLogoIcon,
 } from "@phosphor-icons/react"
 
+import { useContactChannels } from "@/components/contact-settings-provider"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -19,7 +21,12 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
-import { contactConfig, getWhatsappHref } from "@/lib/contact"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  buildContactChannelHref,
+  type ContactChannel,
+  type ContactChannelType,
+} from "@/lib/contact"
 import { cn } from "@/lib/utils"
 
 type ContactActionsProps = {
@@ -34,60 +41,33 @@ type ContactDrawerProps = ContactActionsProps & {
   children?: ReactNode
 }
 
-type ContactItem = {
-  content: string
-  external?: boolean
-  href: string
-  icon?: Icon
-  label: string
-  logo?: {
-    alt: string
-    src: string
-  }
+const contactTypeIcons: Record<ContactChannelType, Icon> = {
+  custom: ChatCircleTextIcon,
+  email: EnvelopeIcon,
+  facebook: MessengerLogoIcon,
+  phone: PhoneCallIcon,
+  whatsapp: WhatsappLogoIcon,
+  zalo: ChatCircleTextIcon,
 }
 
-function getContactItems(roomCode?: string): ContactItem[] {
-  return [
-    {
-      content: contactConfig.phone,
-      external: true,
-      href: contactConfig.zaloUrl,
-      label: "Nhắn tin qua Zalo",
-      logo: {
-        alt: "Zalo",
-        src: "/contact/zalo-logo.png",
-      },
-    },
-    {
-      content: contactConfig.fanpageLabel,
-      external: true,
-      href: contactConfig.fanpageUrl,
-      label: "Nhắn tin qua Fanpage Facebook",
-      logo: {
-        alt: "Facebook",
-        src: "/contact/facebook-logo.png",
-      },
-    },
-    {
-      content: contactConfig.phone,
-      href: contactConfig.phoneHref,
-      icon: PhoneCallIcon,
-      label: "Gọi điện",
-    },
-    {
-      content: contactConfig.phone,
-      external: true,
-      href: getWhatsappHref(roomCode),
-      icon: WhatsappLogoIcon,
-      label: "Nhắn tin qua WhatsApp",
-    },
-    {
-      content: contactConfig.email,
-      href: `mailto:${contactConfig.email}`,
-      icon: EnvelopeIcon,
-      label: "Gửi email",
-    },
-  ]
+function ContactIcon({ channel }: { channel: ContactChannel }) {
+  if (channel.logoSrc) {
+    return (
+      <span className="relative size-4 shrink-0">
+        <Image
+          src={channel.logoSrc}
+          alt={channel.logoAlt || channel.label}
+          fill
+          className="object-contain"
+          sizes="16px"
+        />
+      </span>
+    )
+  }
+
+  const Icon = contactTypeIcons[channel.type]
+
+  return <Icon data-icon="inline-start" />
 }
 
 export function ContactDrawer({
@@ -97,7 +77,7 @@ export function ContactDrawer({
   triggerClassName,
   variant = "default",
 }: ContactDrawerProps) {
-  const items = getContactItems(roomCode)
+  const channels = useContactChannels()
 
   return (
     <Drawer direction="bottom">
@@ -113,50 +93,36 @@ export function ContactDrawer({
         <DrawerHeader>
           <DrawerTitle>Liên hệ Roovea</DrawerTitle>
           <DrawerDescription>
-            Chọn kênh tư vấn phù hợp. Roovea sẽ hỗ trợ theo mã phòng và nhu cầu
-            lưu trú của bạn.
+            Chọn kênh tư vấn phù hợp. Roovea sẽ hỗ trợ theo nhu cầu
+          của bạn.
           </DrawerDescription>
         </DrawerHeader>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4">
-          {items.map((item) => {
-            const Icon = item.icon
-
-            return (
+        <ScrollArea className="min-h-0 flex-1 overflow-hidden px-4 pb-4">
+          <div className="flex flex-col gap-2">
+            {channels.map((channel) => (
               <Button
-                key={item.label}
+                key={channel.id}
                 asChild
                 variant="outline"
                 className="h-auto justify-start py-3"
               >
                 <a
-                  href={item.href}
-                  target={item.external ? "_blank" : undefined}
-                  rel={item.external ? "noreferrer" : undefined}
+                  href={buildContactChannelHref(channel, roomCode)}
+                  target={channel.external ? "_blank" : undefined}
+                  rel={channel.external ? "noreferrer" : undefined}
                 >
-                  {item.logo ? (
-                    <span className="relative size-4 shrink-0">
-                      <Image
-                        src={item.logo.src}
-                        alt={item.logo.alt}
-                        fill
-                        className="object-contain"
-                        sizes="16px"
-                      />
-                    </span>
-                  ) : Icon ? (
-                    <Icon data-icon="inline-start" />
-                  ) : null}
+                  <ContactIcon channel={channel} />
                   <span className="flex min-w-0 flex-col items-start gap-0.5">
-                    <span>{item.label}</span>
+                    <span>{channel.label}</span>
                     <span className="max-w-full truncate text-muted-foreground">
-                      {item.content}
+                      {channel.content}
                     </span>
                   </span>
                 </a>
               </Button>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        </ScrollArea>
       </DrawerContent>
     </Drawer>
   )

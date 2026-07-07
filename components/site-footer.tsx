@@ -1,10 +1,18 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
 
+import { useContactChannels } from "@/components/contact-settings-provider"
 import { Separator } from "@/components/ui/separator"
-import { contactConfig } from "@/lib/contact"
+import { buildContactChannelHref } from "@/lib/contact"
 
 export function SiteFooter() {
+  const channels = useContactChannels()
+  const phoneChannel =
+    channels.find((channel) => channel.type === "phone") ?? channels[0]
+  const emailChannel = channels.find((channel) => channel.type === "email")
+
   return (
     <footer className="border-t bg-muted/30">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -42,20 +50,31 @@ export function SiteFooter() {
           </div>
           <div className="flex flex-col gap-2 text-sm">
             <p className="font-medium">Liên hệ</p>
-            <a href={contactConfig.phoneHref} className="text-muted-foreground">
-              {contactConfig.phone}
-            </a>
-            <a
-              href={`mailto:${contactConfig.email}`}
-              className="text-muted-foreground"
-            >
-              {contactConfig.email}
-            </a>
+            {phoneChannel ? (
+              <a
+                href={buildContactChannelHref(phoneChannel)}
+                className="text-muted-foreground"
+                target={phoneChannel.external ? "_blank" : undefined}
+                rel={phoneChannel.external ? "noreferrer" : undefined}
+              >
+                {phoneChannel.content}
+              </a>
+            ) : null}
+            {emailChannel ? (
+              <a
+                href={buildContactChannelHref(emailChannel)}
+                className="text-muted-foreground"
+                target={emailChannel.external ? "_blank" : undefined}
+                rel={emailChannel.external ? "noreferrer" : undefined}
+              >
+                {emailChannel.content}
+              </a>
+            ) : null}
           </div>
         </div>
         <Separator />
         <p className="text-xs text-muted-foreground">
-          © 2026 Roovea.com. MVP giao diện lưu trú.
+          © 2026 Roovea.com
         </p>
       </div>
     </footer>

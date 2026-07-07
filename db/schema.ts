@@ -23,6 +23,7 @@ import type {
   ServiceType,
   SmokingPolicy,
 } from "../lib/admin/types"
+import type { ContactChannelType } from "../lib/contact"
 
 export const roomStatusEnum = pgEnum("room_status", [
   "draft",
@@ -59,6 +60,33 @@ export const commissionTypeEnum = pgEnum("commission_type", [
   "fixed",
 ])
 export const priceUnitEnum = pgEnum("price_unit", ["per_night", "per_hour"])
+
+export const contactChannels = pgTable(
+  "contact_channels",
+  {
+    id: text("id").primaryKey(),
+    type: varchar("type", { length: 32 }).$type<ContactChannelType>().notNull(),
+    label: text("label").notNull(),
+    content: text("content").notNull(),
+    href: text("href").notNull(),
+    external: boolean("external").notNull().default(false),
+    enabled: boolean("enabled").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    logoSrc: text("logo_src").notNull().default(""),
+    logoAlt: text("logo_alt").notNull().default(""),
+    appendRoomMessage: boolean("append_room_message").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("contact_channels_enabled_idx").on(table.enabled),
+    index("contact_channels_sort_order_idx").on(table.sortOrder),
+  ]
+)
 
 export const suppliers = pgTable(
   "suppliers",

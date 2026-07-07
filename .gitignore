@@ -36,6 +36,9 @@ pnpm-debug.log*
 /public/uploads/*
 !/public/uploads/.gitkeep
 
+# local PostgreSQL data for no-Docker development
+/.dev-postgres/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

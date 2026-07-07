@@ -6,6 +6,7 @@ import {
   BuildingsIcon,
   ChatCircleTextIcon,
   HouseLineIcon,
+  PhoneCallIcon,
   SidebarSimpleIcon,
   SignOutIcon,
 } from "@phosphor-icons/react"
@@ -32,6 +33,11 @@ const adminNavItems = [
     label: "Tin nhắn",
     href: "/admin/messages",
     icon: ChatCircleTextIcon,
+  },
+  {
+    label: "Liên hệ",
+    href: "/admin/contacts",
+    icon: PhoneCallIcon,
   },
 ]
 

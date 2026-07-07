@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
+import { toast } from "sonner"
 import {
   DotsThreeVerticalIcon,
   MagnifyingGlassIcon,
@@ -94,6 +95,7 @@ export function AdminSuppliersPage() {
   const [query, setQuery] = useState("")
   const [filters, setFilters] = useState<SupplierFilters>(emptyFilters)
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [notice, setNotice] = useState("")
 
   const locations = useMemo(
@@ -183,19 +185,37 @@ export function AdminSuppliersPage() {
   }
 
   async function confirmDelete() {
-    if (!deleteTarget) {
+    if (!deleteTarget || deleting) {
       return
     }
 
-    const result = await deleteSupplier(deleteTarget.id)
-    setDeleteTarget(null)
+    setDeleting(true)
 
-    if (!result.ok) {
-      setNotice(result.reason ?? "Không thể xóa nhà cung cấp.")
-      return
+    try {
+      const result = await deleteSupplier(deleteTarget.id)
+      setDeleteTarget(null)
+
+      if (!result.ok) {
+        const message = result.reason ?? "Không thể xóa nhà cung cấp."
+        setNotice(message)
+        toast.warning(message)
+        return
+      }
+
+      const message = "Đã xóa nhà cung cấp khỏi database."
+      setNotice(message)
+      toast.success(message)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Backend chưa phản hồi, vui lòng thử lại."
+
+      setNotice(message)
+      toast.error(message)
+    } finally {
+      setDeleting(false)
     }
-
-    setNotice("Đã xóa nhà cung cấp khỏi database.")
   }
 
   return (
@@ -487,9 +507,10 @@ export function AdminSuppliersPage() {
                                   variant="destructive"
                                   onClick={() => {
                                     if (linkedCount > 0) {
-                                      setNotice(
-                                        `Không thể xóa ${supplier.supplierCode} vì còn ${linkedCount} phòng đang liên kết.`
-                                      )
+                                      const message = `Không thể xóa ${supplier.supplierCode} vì còn ${linkedCount} phòng đang liên kết.`
+
+                                      setNotice(message)
+                                      toast.warning(message)
                                       return
                                     }
 
@@ -545,12 +566,13 @@ export function AdminSuppliersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>Hủy</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
+              disabled={deleting}
               onClick={() => void confirmDelete()}
             >
-              Xóa
+              {deleting ? "Đang xóa..." : "Xóa"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
