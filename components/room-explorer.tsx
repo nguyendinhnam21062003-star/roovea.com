@@ -10,6 +10,7 @@ import type {
 } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowRightIcon,
@@ -104,10 +105,37 @@ type RoomExplorerProps = {
 
 type SortOption = "popular" | "price-asc" | "price-desc" | "newest"
 
-const guestOptions = Array.from({ length: 99 }, (_, index) => String(index + 1))
+type FilterUrlState = {
+  query: string
+  guests: string
+  sort: SortOption
+  priceRange: [number, number]
+  selectedTypes: string[]
+  selectedProvinces: string[]
+  selectedFeaturedAreas: string[]
+}
+
 const initialVisibleRoomCount = 10
 const loadMoreRoomCount = 6
-const priceRangeBounds: [number, number] = [0, 8000000]
+const fallbackMaxGuests = 10
+const fallbackPriceRangeBounds: [number, number] = [0, 8000000]
+const priceRangeStep = 100000
+const sortOptions: SortOption[] = [
+  "popular",
+  "price-asc",
+  "price-desc",
+  "newest",
+]
+const filterParamNames = [
+  "q",
+  "guests",
+  "sort",
+  "minPrice",
+  "maxPrice",
+  "type",
+  "province",
+  "area",
+] as const
 
 async function writeClipboardText(text: string) {
   if (navigator.clipboard?.writeText) {
@@ -174,22 +202,242 @@ const featuredAreaOptions = [
   { label: "Quận 1", value: "Quận 1" },
 ]
 
+const typeValues = new Set(typeOptions.map((option) => option.value))
+const provinceValues = new Set(provinceOptions.map((option) => option.value))
+const featuredAreaValues = new Set(
+  featuredAreaOptions.map((option) => option.value)
+)
+
 function getRoomScore(room: PublicRoom) {
   return room.featured ? "4.9" : "4.7"
 }
 
-export function RoomExplorer({ rooms }: RoomExplorerProps) {
-  const [query, setQuery] = useState("")
-  const [heroDestination, setHeroDestination] = useState("")
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([])
-  const [selectedProvinces, setSelectedProvinces] = useState<string[]>([])
-  const [selectedFeaturedAreas, setSelectedFeaturedAreas] = useState<string[]>(
-    []
+function getGuestOptions(rooms: PublicRoom[]) {
+  const maxGuests = Math.max(
+    fallbackMaxGuests,
+    ...rooms.map((room) => Math.max(0, Math.ceil(room.guests)))
   )
-  const [priceRange, setPriceRange] =
-    useState<[number, number]>(priceRangeBounds)
-  const [guests, setGuests] = useState("1")
-  const [sort, setSort] = useState<SortOption>("popular")
+
+  return Array.from({ length: maxGuests }, (_, index) => String(index + 1))
+}
+
+function getPriceRangeBounds(rooms: PublicRoom[]): [number, number] {
+  const prices = rooms
+    .map((room) => room.referencePrice)
+    .filter((price) => Number.isFinite(price) && price > 0)
+
+  if (!prices.length) {
+    return fallbackPriceRangeBounds
+  }
+
+  const roundedMin = Math.max(
+    0,
+    Math.floor(Math.min(...prices) / priceRangeStep) * priceRangeStep
+  )
+  const roundedMax =
+    Math.ceil(Math.max(...prices) / priceRangeStep) * priceRangeStep
+
+  return roundedMin === roundedMax
+    ? [Math.max(0, roundedMin - priceRangeStep), roundedMax + priceRangeStep]
+    : [roundedMin, roundedMax]
+}
+
+function getUniqueKnownValues(
+  values: string[],
+  allowedValues: ReadonlySet<string>
+) {
+  return Array.from(
+    new Set(values.map((value) => value.trim()).filter(Boolean))
+  ).filter((value) => allowedValues.has(value))
+}
+
+function getMultiParamValues(params: URLSearchParams, name: string) {
+  return params
+    .getAll(name)
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
+function getBoundedNumber(
+  value: string | null,
+  fallback: number,
+  priceRangeBounds: [number, number]
+) {
+  if (!value?.trim()) {
+    return fallback
+  }
+
+  const numberValue = Number(value)
+
+  if (!Number.isFinite(numberValue)) {
+    return fallback
+  }
+
+  return Math.min(
+    priceRangeBounds[1],
+    Math.max(priceRangeBounds[0], numberValue)
+  )
+}
+
+function getFiltersFromSearchParams(
+  params: URLSearchParams,
+  priceRangeBounds: [number, number],
+  guestOptions: string[]
+): FilterUrlState {
+  const minPrice = getBoundedNumber(
+    params.get("minPrice"),
+    priceRangeBounds[0],
+    priceRangeBounds
+  )
+  const maxPrice = getBoundedNumber(
+    params.get("maxPrice"),
+    priceRangeBounds[1],
+    priceRangeBounds
+  )
+  const priceRange: [number, number] =
+    minPrice === priceRangeBounds[0] && maxPrice === priceRangeBounds[0]
+      ? priceRangeBounds
+      : [Math.min(minPrice, maxPrice), Math.max(minPrice, maxPrice)]
+  const guestsParam = params.get("guests") ?? "1"
+  const sortParam = params.get("sort")
+
+  return {
+    query: params.get("q")?.trim() ?? "",
+    guests: guestOptions.includes(guestsParam) ? guestsParam : "1",
+    sort: sortOptions.includes(sortParam as SortOption)
+      ? (sortParam as SortOption)
+      : "popular",
+    priceRange,
+    selectedTypes: getUniqueKnownValues(
+      getMultiParamValues(params, "type"),
+      typeValues
+    ),
+    selectedProvinces: getUniqueKnownValues(
+      getMultiParamValues(params, "province"),
+      provinceValues
+    ),
+    selectedFeaturedAreas: getUniqueKnownValues(
+      getMultiParamValues(params, "area"),
+      featuredAreaValues
+    ),
+  }
+}
+
+function appendMultiParam(
+  params: URLSearchParams,
+  name: string,
+  values: string[]
+) {
+  values.forEach((value) => {
+    params.append(name, value)
+  })
+}
+
+function writeFiltersToSearchParams(
+  params: URLSearchParams,
+  filters: FilterUrlState,
+  priceRangeBounds: [number, number]
+) {
+  filterParamNames.forEach((name) => {
+    params.delete(name)
+  })
+
+  if (filters.query.trim()) {
+    params.set("q", filters.query.trim())
+  }
+
+  if (filters.guests !== "1") {
+    params.set("guests", filters.guests)
+  }
+
+  if (filters.sort !== "popular") {
+    params.set("sort", filters.sort)
+  }
+
+  if (
+    filters.priceRange[0] !== priceRangeBounds[0] ||
+    filters.priceRange[1] !== priceRangeBounds[1]
+  ) {
+    params.set("minPrice", String(filters.priceRange[0]))
+    params.set("maxPrice", String(filters.priceRange[1]))
+  }
+
+  appendMultiParam(params, "type", filters.selectedTypes)
+  appendMultiParam(params, "province", filters.selectedProvinces)
+  appendMultiParam(params, "area", filters.selectedFeaturedAreas)
+
+  return params
+}
+
+function getFilterQueryString(
+  filters: FilterUrlState,
+  priceRangeBounds: [number, number]
+) {
+  return writeFiltersToSearchParams(
+    new URLSearchParams(),
+    filters,
+    priceRangeBounds
+  ).toString()
+}
+
+function getFilterHref(
+  pathname: string,
+  currentSearchParams: URLSearchParams,
+  filters: FilterUrlState,
+  priceRangeBounds: [number, number]
+) {
+  const params = writeFiltersToSearchParams(
+    new URLSearchParams(currentSearchParams.toString()),
+    filters,
+    priceRangeBounds
+  )
+  const queryString = params.toString()
+  const filterQueryString = getFilterQueryString(filters, priceRangeBounds)
+
+  return `${pathname}${queryString ? `?${queryString}` : ""}${
+    filterQueryString ? "#tim-phong" : ""
+  }`
+}
+
+function areFilterStatesEqual(
+  first: FilterUrlState,
+  second: FilterUrlState,
+  priceRangeBounds: [number, number]
+) {
+  return (
+    getFilterQueryString(first, priceRangeBounds) ===
+    getFilterQueryString(second, priceRangeBounds)
+  )
+}
+
+export function RoomExplorer({ rooms }: RoomExplorerProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const guestOptions = useMemo(() => getGuestOptions(rooms), [rooms])
+  const priceRangeBounds = useMemo(() => getPriceRangeBounds(rooms), [rooms])
+  const initialFilters = getFiltersFromSearchParams(
+    new URLSearchParams(searchParams.toString()),
+    priceRangeBounds,
+    guestOptions
+  )
+  const [query, setQuery] = useState(initialFilters.query)
+  const [heroDestination, setHeroDestination] = useState(initialFilters.query)
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(
+    initialFilters.selectedTypes
+  )
+  const [selectedProvinces, setSelectedProvinces] = useState<string[]>(
+    initialFilters.selectedProvinces
+  )
+  const [selectedFeaturedAreas, setSelectedFeaturedAreas] = useState<string[]>(
+    initialFilters.selectedFeaturedAreas
+  )
+  const [priceRange, setPriceRange] = useState<[number, number]>(
+    initialFilters.priceRange
+  )
+  const [guests, setGuests] = useState(initialFilters.guests)
+  const [sort, setSort] = useState<SortOption>(initialFilters.sort)
   const [visibleRoomState, setVisibleRoomState] = useState({
     count: initialVisibleRoomCount,
     key: "",
@@ -199,6 +447,97 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
   const [featuredCanScrollPrev, setFeaturedCanScrollPrev] = useState(false)
   const [featuredCanScrollNext, setFeaturedCanScrollNext] = useState(false)
   const featuredScrollRef = useRef<HTMLDivElement>(null)
+  const filterState = useMemo<FilterUrlState>(
+    () => ({
+      query,
+      guests,
+      sort,
+      priceRange,
+      selectedTypes,
+      selectedProvinces,
+      selectedFeaturedAreas,
+    }),
+    [
+      guests,
+      priceRange,
+      query,
+      selectedFeaturedAreas,
+      selectedProvinces,
+      selectedTypes,
+      sort,
+    ]
+  )
+  const filterStateRef = useRef(filterState)
+  const syncingFiltersFromUrlRef = useRef(false)
+  const serializedSearchParams = searchParams.toString()
+
+  useEffect(() => {
+    filterStateRef.current = filterState
+  }, [filterState])
+
+  useEffect(() => {
+    const nextFilters = getFiltersFromSearchParams(
+      new URLSearchParams(serializedSearchParams),
+      priceRangeBounds,
+      guestOptions
+    )
+
+    if (
+      areFilterStatesEqual(
+        filterStateRef.current,
+        nextFilters,
+        priceRangeBounds
+      )
+    ) {
+      return
+    }
+
+    syncingFiltersFromUrlRef.current = true
+    setQuery(nextFilters.query)
+    setHeroDestination(nextFilters.query)
+    setSelectedTypes(nextFilters.selectedTypes)
+    setSelectedProvinces(nextFilters.selectedProvinces)
+    setSelectedFeaturedAreas(nextFilters.selectedFeaturedAreas)
+    setPriceRange(nextFilters.priceRange)
+    setGuests(nextFilters.guests)
+    setSort(nextFilters.sort)
+  }, [guestOptions, priceRangeBounds, serializedSearchParams])
+
+  useEffect(() => {
+    if (syncingFiltersFromUrlRef.current) {
+      syncingFiltersFromUrlRef.current = false
+      return
+    }
+
+    const currentUrlFilters = getFiltersFromSearchParams(
+      new URLSearchParams(serializedSearchParams),
+      priceRangeBounds,
+      guestOptions
+    )
+
+    if (
+      areFilterStatesEqual(filterState, currentUrlFilters, priceRangeBounds)
+    ) {
+      return
+    }
+
+    router.replace(
+      getFilterHref(
+        pathname,
+        new URLSearchParams(serializedSearchParams),
+        filterState,
+        priceRangeBounds
+      ),
+      { scroll: false }
+    )
+  }, [
+    filterState,
+    guestOptions,
+    pathname,
+    priceRangeBounds,
+    router,
+    serializedSearchParams,
+  ])
 
   const heroImage = {
     src: "/brand/roovea-hero.png",
@@ -608,6 +947,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
             <aside className="hidden lg:block">
               <div className="sticky top-20">
                 <FilterPanel
+                  guestOptions={guestOptions}
                   guests={guests}
                   onClear={clearAllFilters}
                   onGuestsChange={setGuests}
@@ -623,6 +963,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
                     toggleFilterValue(value, setSelectedTypes)
                   }
                   priceRange={priceRange}
+                  priceRangeBounds={priceRangeBounds}
                   selectedFeaturedAreas={selectedFeaturedAreas}
                   selectedProvinces={selectedProvinces}
                   selectedTypes={selectedTypes}
@@ -797,6 +1138,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
             <FilterPanel
               className="h-full max-h-none min-h-0"
               contentViewportClassName="max-h-none min-h-0 flex-1"
+              guestOptions={guestOptions}
               guests={guests}
               showClearFooter={false}
               showAllOptions
@@ -813,6 +1155,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
                 toggleFilterValue(value, setSelectedTypes)
               }
               priceRange={priceRange}
+              priceRangeBounds={priceRangeBounds}
               selectedFeaturedAreas={selectedFeaturedAreas}
               selectedProvinces={selectedProvinces}
               selectedTypes={selectedTypes}
@@ -844,6 +1187,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
 function FilterPanel({
   className,
   contentViewportClassName,
+  guestOptions,
   guests,
   onClear,
   onGuestsChange,
@@ -853,6 +1197,7 @@ function FilterPanel({
   onShowMore,
   onTypeToggle,
   priceRange,
+  priceRangeBounds,
   selectedFeaturedAreas,
   selectedProvinces,
   selectedTypes,
@@ -861,6 +1206,7 @@ function FilterPanel({
 }: {
   className?: string
   contentViewportClassName?: string
+  guestOptions: string[]
   guests: string
   onClear: () => void
   onGuestsChange: (value: string) => void
@@ -870,6 +1216,7 @@ function FilterPanel({
   onShowMore?: () => void
   onTypeToggle: (value: string) => void
   priceRange: [number, number]
+  priceRangeBounds: [number, number]
   selectedFeaturedAreas: string[]
   selectedProvinces: string[]
   selectedTypes: string[]
@@ -977,7 +1324,7 @@ function FilterPanel({
               <Slider
                 min={priceRangeBounds[0]}
                 max={priceRangeBounds[1]}
-                step={100000}
+                step={priceRangeStep}
                 value={priceRange}
                 onValueChange={(value) =>
                   onPriceRangeChange(value as [number, number])
