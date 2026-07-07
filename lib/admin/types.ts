@@ -10,6 +10,7 @@ export type AccommodationType =
   | "whole_house"
   | "cruise"
   | "villa"
+  | "resort"
   | "homestay"
   | "studio"
   | "other"

@@ -25,12 +25,13 @@ export const supplierStatusLabels: Record<SupplierStatus, string> = {
 export const accommodationTypeLabels: Record<AccommodationType, string> = {
   guesthouse: "Nhà nghỉ",
   hotel: "Khách sạn",
-  apartment: "Căn hộ/Chung cư",
+  apartment: "Chung cư",
   whole_house: "Nhà nguyên căn",
   cruise: "Du thuyền",
-  villa: "Villa",
+  villa: "Biệt thự/Villa",
+  resort: "Resort",
   homestay: "Homestay",
-  studio: "Studio",
+  studio: "Khác",
   other: "Khác",
 }
 
@@ -70,9 +71,20 @@ export const supplierStatusOptions = Object.entries(supplierStatusLabels).map(
   ([value, label]) => ({ value: value as SupplierStatus, label })
 )
 
-export const accommodationTypeOptions = Object.entries(
-  accommodationTypeLabels
-).map(([value, label]) => ({ value: value as AccommodationType, label }))
+export const accommodationTypeOptions = [
+  "homestay",
+  "whole_house",
+  "apartment",
+  "guesthouse",
+  "hotel",
+  "villa",
+  "cruise",
+  "resort",
+  "other",
+].map((value) => ({
+  value: value as AccommodationType,
+  label: accommodationTypeLabels[value as AccommodationType],
+}))
 
 export const priceUnitOptions = Object.entries(priceUnitLabels).map(
   ([value, label]) => ({ value: value as PriceUnit, label })

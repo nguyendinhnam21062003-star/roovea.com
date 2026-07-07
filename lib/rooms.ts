@@ -1,4 +1,8 @@
-import type { RoomPolicies as AdminRoomPolicies } from "@/lib/admin/types"
+import { accommodationTypeLabels } from "@/lib/admin/options"
+import type {
+  AccommodationType,
+  RoomPolicies as AdminRoomPolicies,
+} from "@/lib/admin/types"
 
 export type RoomMedia = {
   type: "image" | "video"
@@ -21,6 +25,8 @@ export type PublicRoom = {
   googleMapUrl: string
   updatedAt: string
   featured?: boolean
+  accommodationTypes: AccommodationType[]
+  otherAccommodationType?: string
   bedrooms: number
   guests: number
   area: string
@@ -34,7 +40,7 @@ export type RoomPolicies = {
   checkOut: string
 }
 
-export function getAccommodationType(room: Pick<PublicRoom, "name">) {
+function getAccommodationTypeFromName(room: Pick<PublicRoom, "name">) {
   if (room.name.includes("Du thuyền")) {
     return "Du thuyền"
   }
@@ -51,16 +57,20 @@ export function getAccommodationType(room: Pick<PublicRoom, "name">) {
     return "Chung cư"
   }
 
-  if (room.name.includes("Villa") || room.name.includes("Nhà nguyên căn")) {
-    return "Nhà nguyên căn"
+  if (room.name.includes("Villa") || room.name.includes("Biệt thự")) {
+    return "Biệt thự/Villa"
+  }
+
+  if (room.name.includes("Resort")) {
+    return "Resort"
   }
 
   if (room.name.includes("Studio")) {
-    return "Căn hộ"
+    return null
   }
 
   if (room.name.includes("Bungalow")) {
-    return "Bungalow"
+    return null
   }
 
   if (room.name.includes("Homestay")) {
@@ -68,10 +78,53 @@ export function getAccommodationType(room: Pick<PublicRoom, "name">) {
   }
 
   if (room.name.includes("Căn hộ")) {
-    return "Căn hộ"
+    return "Chung cư"
   }
 
-  return "Chỗ nghỉ"
+  if (room.name.includes("Nhà nguyên căn")) {
+    return "Nhà nguyên căn"
+  }
+
+  return null
+}
+
+function getAccommodationTypeOptionLabels(
+  type: AccommodationType,
+  otherAccommodationType?: string
+) {
+  if (type === "other" && otherAccommodationType?.trim()) {
+    return [otherAccommodationType.trim()]
+  }
+
+  if (accommodationTypeLabels[type] === "Khác") {
+    return []
+  }
+
+  return [accommodationTypeLabels[type]]
+}
+
+export function getAccommodationTypeLabels(
+  room: Pick<
+    PublicRoom,
+    "name" | "accommodationTypes" | "otherAccommodationType"
+  >
+) {
+  const labels = room.accommodationTypes.flatMap((type) =>
+    getAccommodationTypeOptionLabels(type, room.otherAccommodationType)
+  )
+  const uniqueLabels = Array.from(new Set(labels.filter(Boolean)))
+  const fallbackLabel = getAccommodationTypeFromName(room)
+
+  return uniqueLabels.length ? uniqueLabels : fallbackLabel ? [fallbackLabel] : []
+}
+
+export function getAccommodationType(
+  room: Pick<
+    PublicRoom,
+    "name" | "accommodationTypes" | "otherAccommodationType"
+  >
+) {
+  return getAccommodationTypeLabels(room).join(" | ")
 }
 
 export function getBathroomCount(room: Pick<PublicRoom, "bedrooms">) {
