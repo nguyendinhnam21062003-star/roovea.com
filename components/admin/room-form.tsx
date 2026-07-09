@@ -75,6 +75,7 @@ import {
 } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { roomDescriptionMaxLength } from "@/lib/admin/constants"
 import { formatCurrency, formatDate } from "@/lib/format"
 import {
   calculateCommissionAmount,
@@ -153,8 +154,8 @@ function validateRoom(room: Room, saveAsDraft: boolean) {
     errors.roomCode = "Vui lòng nhập mã phòng."
   }
 
-  if (room.description.length > 150) {
-    errors.description = "Mô tả nên tối đa khoảng 150 ký tự."
+  if (room.description.length > roomDescriptionMaxLength) {
+    errors.description = `Mô tả nên tối đa khoảng ${roomDescriptionMaxLength} ký tự.`
   }
 
   if (room.accommodationTypes.length > 3) {
@@ -798,14 +799,15 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                 <Textarea
                   id="room-description"
                   value={draft.description}
-                  maxLength={180}
+                  maxLength={roomDescriptionMaxLength}
                   onChange={(event) =>
                     updateRoom({ description: event.target.value })
                   }
                   aria-invalid={Boolean(errors.description)}
                 />
                 <FieldDescription>
-                  {draft.description.length}/150 ký tự khuyến nghị.
+                  {draft.description.length}/{roomDescriptionMaxLength} ký tự
+                  khuyến nghị.
                 </FieldDescription>
                 <FieldError>{errors.description}</FieldError>
               </Field>

@@ -33,6 +33,7 @@ pnpm-debug.log*
 !.env.example
 
 # local uploaded media
+/.data/
 /public/uploads/*
 !/public/uploads/.gitkeep
 

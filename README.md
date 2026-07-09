@@ -89,6 +89,7 @@ npm run build
 
 ## Notes
 
-- Uploaded room images are stored locally under `public/uploads/rooms` by the
-  storage adapter and referenced through DB media records.
+- Uploaded room images are stored locally under `ROOM_UPLOAD_DIR` when set, or
+  `.data/uploads/rooms` by default, and are served from `/uploads/rooms/...`.
+  Existing files under `public/uploads/rooms` are still read as a fallback.
 - Do not commit real `.env.local` values or generated upload files.

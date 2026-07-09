@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { roomDescriptionMaxLength } from "@/lib/admin/constants"
 import { formatCurrency } from "@/lib/format"
 import {
   getRoomCompletion,
@@ -421,7 +422,10 @@ function mapJsonToRoom(
       record.accommodationTypes
     ) as AccommodationType[],
     otherAccommodationType: stringValue(record.otherAccommodationType),
-    description: stringValue(record.description).slice(0, 150),
+    description: stringValue(record.description).slice(
+      0,
+      roomDescriptionMaxLength
+    ),
     areaM2: numberValue(record.areaM2) || undefined,
     capacity: {
       maxGuests: numberValue(capacity.maxGuests, 1),
