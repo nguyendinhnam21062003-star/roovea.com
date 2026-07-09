@@ -21,16 +21,25 @@ function getAdminRedirectPath(value: FormDataEntryValue | null) {
   return defaultAdminRedirect
 }
 
-function redirectToLogin(requestUrl: string, next: string) {
-  const url = new URL("/admin/login", requestUrl)
-
-  url.searchParams.set("error", "1")
+function buildLoginPath(next: string) {
+  const params = new URLSearchParams({ error: "1" })
 
   if (next !== defaultAdminRedirect) {
-    url.searchParams.set("next", next)
+    params.set("next", next)
   }
 
-  return NextResponse.redirect(url, 303)
+  return `/admin/login?${params.toString()}`
+}
+
+function redirect(location: string, init?: ResponseInit) {
+  return new NextResponse(null, {
+    ...init,
+    status: init?.status ?? 303,
+    headers: {
+      ...init?.headers,
+      location,
+    },
+  })
 }
 
 export async function POST(request: Request) {
@@ -40,10 +49,10 @@ export async function POST(request: Request) {
   const next = getAdminRedirectPath(formData.get("next"))
 
   if (!verifyAdminCredentials(email, password)) {
-    return redirectToLogin(request.url, next)
+    return redirect(buildLoginPath(next))
   }
 
   await setAdminSessionCookie(getAdminEmail())
 
-  return NextResponse.redirect(new URL(next, request.url), 303)
+  return redirect(next)
 }

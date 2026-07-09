@@ -6,6 +6,15 @@ import {
   verifyAdminSessionToken,
 } from "@/lib/auth/session-token"
 
+function redirect(pathname: string) {
+  return new NextResponse(null, {
+    status: 307,
+    headers: {
+      location: pathname,
+    },
+  })
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const token = request.cookies.get(adminSessionCookieName)?.value
@@ -13,7 +22,7 @@ export async function proxy(request: NextRequest) {
 
   if (pathname.startsWith("/admin/login")) {
     if (session) {
-      return NextResponse.redirect(new URL("/admin/messages", request.url))
+      return redirect("/admin/messages")
     }
 
     return NextResponse.next()
@@ -34,10 +43,7 @@ export async function proxy(request: NextRequest) {
     )
   }
 
-  const loginUrl = new URL("/admin/login", request.url)
-  loginUrl.searchParams.set("next", pathname)
-
-  return NextResponse.redirect(loginUrl)
+  return redirect(`/admin/login?next=${encodeURIComponent(pathname)}`)
 }
 
 export const config = {
