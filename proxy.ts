@@ -19,6 +19,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
+  if (pathname === "/api/admin/login") {
+    return NextResponse.next()
+  }
+
   if (session) {
     return NextResponse.next()
   }

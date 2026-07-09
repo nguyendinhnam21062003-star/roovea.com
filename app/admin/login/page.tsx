@@ -1,6 +1,5 @@
 import { LockKeyIcon } from "@phosphor-icons/react/dist/ssr"
 
-import { loginAdmin } from "@/app/admin/login/actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,7 +37,11 @@ export default async function AdminLoginPage({
           ) : null}
         </CardHeader>
         <CardContent>
-          <form action={loginAdmin} className="flex flex-col gap-4">
+          <form
+            action="/api/admin/login"
+            method="post"
+            className="flex flex-col gap-4"
+          >
             <input type="hidden" name="next" value={params.next ?? ""} />
             {params.error ? (
               <Alert variant="destructive">
