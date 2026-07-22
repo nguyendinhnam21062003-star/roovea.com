@@ -78,12 +78,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { roomDescriptionMaxLength } from "@/lib/admin/constants"
 import { formatCurrency, formatDate } from "@/lib/format"
 import {
-  calculateCommissionAmount,
   calculateExpectedProfit,
+  calculateSpecialExpectedProfit,
+  getPriceUnitSuffix,
   getRoomCompletion,
+  getRoomGuestSummary,
   getRoomThumbnail,
+  getWeekdaySummary,
   isValidUrl,
   isWhitelistedVideoUrl,
+  normalizeRoomCapacity,
+  normalizeRoomPricing,
   withAutomaticRoomSeo,
 } from "@/lib/admin/helpers"
 import {
@@ -97,16 +102,17 @@ import {
   roomStatusLabels,
   roomStatusOptions,
   supplierStatusLabels,
+  weekdayOptions,
 } from "@/lib/admin/options"
 import { buildEmptySupplier, useAdminStore } from "@/lib/admin/store"
 import type {
   AccommodationType,
-  CommissionType,
   DistanceToCenter,
   PriceUnit,
   Room,
   RoomImage,
   RoomStatus,
+  Weekday,
 } from "@/lib/admin/types"
 
 type RoomFormProps = {
@@ -162,12 +168,7 @@ function validateRoom(room: Room, saveAsDraft: boolean) {
     errors.accommodationTypes = "Chỉ chọn tối đa 3 loại hình lưu trú."
   }
 
-  if (
-    room.pricing.strikethroughPrice &&
-    room.pricing.strikethroughPrice <= room.pricing.referencePrice
-  ) {
-    errors.strikethroughPrice = "Giá gạch ngang phải lớn hơn giá tham khảo."
-  }
+  const validatedPricing = normalizeRoomPricing(room.pricing)
 
   const invalidVideoUrl = room.media.videoUrls.find(
     (url) => !isWhitelistedVideoUrl(url)
@@ -182,13 +183,18 @@ function validateRoom(room: Room, saveAsDraft: boolean) {
     errors.googleMapsUrl = "Link Google Maps cần là URL hợp lệ."
   }
 
+  if (room.internalPolicyUrl && !isValidUrl(room.internalPolicyUrl)) {
+    errors.internalPolicyUrl =
+      "Link chính sách nội bộ cần là URL hợp lệ hoặc để trống."
+  }
+
   if (!saveAsDraft) {
     if (room.accommodationTypes.length === 0) {
       errors.accommodationTypes = "Chọn ít nhất một loại hình lưu trú."
     }
 
-    if (room.pricing.referencePrice <= 0) {
-      errors.referencePrice = "Nhập giá tham khảo lớn hơn 0."
+    if (validatedPricing.weekdayCustomerPrice <= 0) {
+      errors.referencePrice = "Nhập giá bán ngày thường lớn hơn 0."
     }
 
     if (!room.location.provinceCity) {
@@ -200,7 +206,7 @@ function validateRoom(room: Room, saveAsDraft: boolean) {
     }
 
     if (room.capacity.maxGuests < 1) {
-      errors.maxGuests = "Sức chứa tối đa cần lớn hơn 0."
+      errors.maxGuests = "Tổng sức chứa cần lớn hơn 0."
     }
 
     if (!room.policies.checkInTime) {
@@ -217,9 +223,15 @@ function validateRoom(room: Room, saveAsDraft: boolean) {
 
 export function RoomForm({ room, mode, onSave }: RoomFormProps) {
   const { suppliers, createSupplier, nextSupplierCode } = useAdminStore()
-  const [draft, setDraft] = useState<Room>(() =>
-    JSON.parse(JSON.stringify(room))
-  )
+  const [draft, setDraft] = useState<Room>(() => {
+    const cloned = JSON.parse(JSON.stringify(room)) as Room
+
+    return {
+      ...cloned,
+      capacity: normalizeRoomCapacity(cloned.capacity),
+      pricing: normalizeRoomPricing(cloned.pricing),
+    }
+  })
   const [errors, setErrors] = useState<RoomErrors>({})
   const [notice, setNotice] = useState("")
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -238,12 +250,9 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
     (supplier) => supplier.id === draft.supplierId
   )
   const thumbnail = getRoomThumbnail(draft)
-  const commissionAmount = calculateCommissionAmount(
-    draft.pricing.supplierPrice,
-    draft.pricing.commissionType,
-    draft.pricing.commissionValue
-  )
-  const expectedProfit = calculateExpectedProfit(draft.pricing)
+  const pricing = normalizeRoomPricing(draft.pricing)
+  const expectedProfit = calculateExpectedProfit(pricing)
+  const specialExpectedProfit = calculateSpecialExpectedProfit(pricing)
   const videoUrlError = errors.videoUrls || videoError
 
   const supplierResults = useMemo(() => {
@@ -268,14 +277,14 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
   function updatePricing(patch: Partial<Room["pricing"]>) {
     setDraft((current) => ({
       ...current,
-      pricing: { ...current.pricing, ...patch },
+      pricing: normalizeRoomPricing({ ...current.pricing, ...patch }),
     }))
   }
 
   function updateCapacity(patch: Partial<Room["capacity"]>) {
     setDraft((current) => ({
       ...current,
-      capacity: { ...current.capacity, ...patch },
+      capacity: normalizeRoomCapacity({ ...current.capacity, ...patch }),
     }))
   }
 
@@ -305,6 +314,8 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
   async function saveRoom(requestedStatus: RoomStatus) {
     const nextRoom = withAutomaticRoomSeo({
       ...draft,
+      capacity: normalizeRoomCapacity(draft.capacity),
+      pricing: normalizeRoomPricing(draft.pricing),
       status: requestedStatus,
     })
     const saveAsDraft = requestedStatus === "draft"
@@ -828,19 +839,59 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                 />
               </Field>
               <Field data-invalid={Boolean(errors.maxGuests)}>
-                <FieldLabel htmlFor="room-guests">Sức chứa tối đa</FieldLabel>
+                <FieldLabel htmlFor="room-adults">Người lớn tối đa</FieldLabel>
                 <Input
-                  id="room-guests"
+                  id="room-adults"
                   type="number"
                   min={1}
                   max={99}
-                  value={draft.capacity.maxGuests}
+                  value={draft.capacity.maxAdults ?? draft.capacity.maxGuests}
                   onChange={(event) =>
-                    updateCapacity({ maxGuests: Number(event.target.value) })
+                    updateCapacity({ maxAdults: Number(event.target.value) })
                   }
                   aria-invalid={Boolean(errors.maxGuests)}
                 />
+                <FieldDescription>
+                  Tổng sức chứa: {getRoomGuestSummary(draft.capacity)}.
+                </FieldDescription>
                 <FieldError>{errors.maxGuests}</FieldError>
+              </Field>
+              <Field data-invalid={Boolean(errors.maxGuests)}>
+                <FieldLabel htmlFor="room-children">Trẻ em tối đa</FieldLabel>
+                <Input
+                  id="room-children"
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={draft.capacity.maxChildren ?? 0}
+                  onChange={(event) =>
+                    updateCapacity({ maxChildren: Number(event.target.value) })
+                  }
+                  aria-invalid={Boolean(errors.maxGuests)}
+                />
+                <FieldDescription>
+                  Ghi rõ điều kiện tuổi/phụ thu trong ghi chú nội bộ hoặc chính
+                  sách khách.
+                </FieldDescription>
+                <FieldError>{errors.maxGuests}</FieldError>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="room-child-age">
+                  Tuổi trẻ em tối đa
+                </FieldLabel>
+                <Input
+                  id="room-child-age"
+                  type="number"
+                  min={1}
+                  max={18}
+                  value={draft.capacity.childAgeMax ?? 6}
+                  onChange={(event) =>
+                    updateCapacity({ childAgeMax: Number(event.target.value) })
+                  }
+                />
+                <FieldDescription>
+                  Mặc định trẻ em được tính khi nhỏ hơn hoặc bằng 6 tuổi.
+                </FieldDescription>
               </Field>
               <Field>
                 <FieldLabel htmlFor="room-bedrooms">Số phòng ngủ</FieldLabel>
@@ -988,97 +1039,91 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Giá và hoa hồng</CardTitle>
+            <CardTitle>Giá phòng</CardTitle>
             <CardDescription>
-              Tách dữ liệu nội bộ với giá hiển thị cho khách.
+              Khai báo giá mua, giá bán và điều kiện áp dụng cho từng nhóm ngày.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup className="grid gap-4 lg:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="supplier-price">
-                  Giá nhà cung cấp/Giá nhập
-                </FieldLabel>
-                <Input
-                  id="supplier-price"
-                  type="number"
-                  min={0}
-                  value={draft.pricing.supplierPrice}
-                  onChange={(event) =>
-                    updatePricing({ supplierPrice: Number(event.target.value) })
-                  }
-                />
-                <FieldDescription>
-                  {formatCurrency(draft.pricing.supplierPrice)}
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="commission-type">Loại hoa hồng</FieldLabel>
-                <Select
-                  value={draft.pricing.commissionType}
-                  onValueChange={(value) =>
-                    updatePricing({ commissionType: value as CommissionType })
-                  }
-                >
-                  <SelectTrigger id="commission-type" className="w-full">
-                    <SelectValue placeholder="Chọn loại hoa hồng" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="percentage">Phần trăm</SelectItem>
-                      <SelectItem value="fixed">Cố định</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="commission-value">
-                  Giá trị hoa hồng
-                </FieldLabel>
-                <Input
-                  id="commission-value"
-                  type="number"
-                  min={0}
-                  value={draft.pricing.commissionValue}
-                  onChange={(event) =>
+              <Field className="lg:col-span-2">
+                <FieldLabel>Ngày thường áp dụng</FieldLabel>
+                <CheckboxGrid
+                  options={weekdayOptions}
+                  values={pricing.weekdayDays}
+                  idPrefix="weekday-days"
+                  onChange={(value, checked) =>
                     updatePricing({
-                      commissionValue: Number(event.target.value),
+                      weekdayDays: toggleValue(
+                        pricing.weekdayDays,
+                        value as Weekday,
+                        checked
+                      ),
                     })
                   }
                 />
+                <FieldDescription>
+                  Hiện đang chọn: {getWeekdaySummary(pricing.weekdayDays)}. Ngày
+                  còn lại trong tuần, lễ và tết được xem là ngày đặc biệt.
+                </FieldDescription>
               </Field>
+
               <Field>
-                <FieldLabel>Số tiền hoa hồng</FieldLabel>
-                <Input value={formatCurrency(commissionAmount)} readOnly />
-              </Field>
-              <Field data-invalid={Boolean(errors.referencePrice)}>
-                <FieldLabel htmlFor="reference-price">
-                  Giá tham khảo/Giá bán dự kiến
+                <FieldLabel htmlFor="weekday-supplier-price">
+                  Giá mua ngày thường
                 </FieldLabel>
                 <Input
-                  id="reference-price"
+                  id="weekday-supplier-price"
                   type="number"
                   min={0}
-                  value={draft.pricing.referencePrice}
+                  value={pricing.weekdaySupplierPrice}
+                  onChange={(event) =>
+                    updatePricing({
+                      weekdaySupplierPrice: Number(event.target.value),
+                    })
+                  }
+                />
+                <FieldDescription>
+                  {formatCurrency(pricing.weekdaySupplierPrice)}
+                  {getPriceUnitSuffix(
+                    pricing.weekdayPriceUnit,
+                    pricing.weekdayUnitCount
+                  )}
+                </FieldDescription>
+              </Field>
+              <Field data-invalid={Boolean(errors.referencePrice)}>
+                <FieldLabel htmlFor="weekday-customer-price">
+                  Giá bán ngày thường
+                </FieldLabel>
+                <Input
+                  id="weekday-customer-price"
+                  type="number"
+                  min={0}
+                  value={pricing.weekdayCustomerPrice}
                   onChange={(event) => {
                     updatePricing({
-                      referencePrice: Number(event.target.value),
+                      weekdayCustomerPrice: Number(event.target.value),
                     })
                     clearError("referencePrice")
                   }}
                   aria-invalid={Boolean(errors.referencePrice)}
                 />
                 <FieldDescription>
-                  {formatCurrency(draft.pricing.referencePrice)}
+                  {formatCurrency(pricing.weekdayCustomerPrice)}
+                  {getPriceUnitSuffix(
+                    pricing.weekdayPriceUnit,
+                    pricing.weekdayUnitCount
+                  )}
+                  . Đây là giá mặc định hiển thị trên card phòng.
                 </FieldDescription>
                 <FieldError>{errors.referencePrice}</FieldError>
               </Field>
               <Field>
-                <FieldLabel>Đơn vị giá</FieldLabel>
+                <FieldLabel>Đơn vị ngày thường</FieldLabel>
                 <Select
-                  value={draft.pricing.priceUnit}
+                  value={pricing.weekdayPriceUnit}
                   onValueChange={(value) =>
-                    updatePricing({ priceUnit: value as PriceUnit })
+                    updatePricing({ weekdayPriceUnit: value as PriceUnit })
                   }
                 >
                   <SelectTrigger className="w-full">
@@ -1095,42 +1140,159 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field data-invalid={Boolean(errors.strikethroughPrice)}>
-                <FieldLabel htmlFor="strike-price">Giá gạch ngang</FieldLabel>
+              <Field>
+                <FieldLabel htmlFor="weekday-unit-count">
+                  Số đêm/giờ ngày thường
+                </FieldLabel>
                 <Input
-                  id="strike-price"
+                  id="weekday-unit-count"
                   type="number"
-                  min={0}
-                  value={draft.pricing.strikethroughPrice ?? ""}
+                  min={1}
+                  max={30}
+                  value={pricing.weekdayUnitCount}
                   onChange={(event) =>
                     updatePricing({
-                      strikethroughPrice: event.target.value
-                        ? Number(event.target.value)
-                        : undefined,
+                      weekdayUnitCount: Number(event.target.value),
                     })
                   }
-                  aria-invalid={Boolean(errors.strikethroughPrice)}
                 />
                 <FieldDescription>
-                  {draft.pricing.strikethroughPrice
-                    ? formatCurrency(draft.pricing.strikethroughPrice)
-                    : "Chưa khai báo giá gạch ngang."}
+                  Dùng khi khách phải đặt tối thiểu 2 đêm, 3 giờ...
                 </FieldDescription>
-                <FieldError>{errors.strikethroughPrice}</FieldError>
+              </Field>
+
+              <Field>
+                <FieldLabel htmlFor="special-supplier-price">
+                  Giá mua ngày đặc biệt
+                </FieldLabel>
+                <Input
+                  id="special-supplier-price"
+                  type="number"
+                  min={0}
+                  value={pricing.specialSupplierPrice}
+                  onChange={(event) =>
+                    updatePricing({
+                      specialSupplierPrice: Number(event.target.value),
+                    })
+                  }
+                />
+                <FieldDescription>
+                  {formatCurrency(pricing.specialSupplierPrice)}
+                  {getPriceUnitSuffix(
+                    pricing.specialPriceUnit,
+                    pricing.specialUnitCount
+                  )}
+                </FieldDescription>
               </Field>
               <Field>
-                <FieldLabel>Lợi nhuận dự kiến mỗi đêm</FieldLabel>
-                <Input value={formatCurrency(expectedProfit)} readOnly />
+                <FieldLabel htmlFor="special-customer-price">
+                  Giá bán ngày đặc biệt
+                </FieldLabel>
+                <Input
+                  id="special-customer-price"
+                  type="number"
+                  min={0}
+                  value={pricing.specialCustomerPrice}
+                  onChange={(event) =>
+                    updatePricing({
+                      specialCustomerPrice: Number(event.target.value),
+                    })
+                  }
+                />
+                <FieldDescription>
+                  {formatCurrency(pricing.specialCustomerPrice)}
+                  {getPriceUnitSuffix(
+                    pricing.specialPriceUnit,
+                    pricing.specialUnitCount
+                  )}
+                  . Hiện ở mục Chính sách trên trang chi tiết phòng.
+                </FieldDescription>
               </Field>
+              <Field>
+                <FieldLabel>Đơn vị ngày đặc biệt</FieldLabel>
+                <Select
+                  value={pricing.specialPriceUnit}
+                  onValueChange={(value) =>
+                    updatePricing({ specialPriceUnit: value as PriceUnit })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Đơn vị giá" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {priceUnitOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="special-unit-count">
+                  Số đêm/giờ ngày đặc biệt
+                </FieldLabel>
+                <Input
+                  id="special-unit-count"
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={pricing.specialUnitCount}
+                  onChange={(event) =>
+                    updatePricing({
+                      specialUnitCount: Number(event.target.value),
+                    })
+                  }
+                />
+                <FieldDescription>
+                  Ví dụ cuối tuần chỉ nhận booking tối thiểu 2 đêm.
+                </FieldDescription>
+              </Field>
+
+              <div className="grid gap-3 border bg-muted/30 p-3 md:grid-cols-2 lg:col-span-2">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    Lợi nhuận ngày thường
+                  </span>
+                  <strong className="text-sm">
+                    {formatCurrency(expectedProfit)}
+                  </strong>
+                  <span className="text-xs text-muted-foreground">
+                    {formatCurrency(pricing.weekdayCustomerPrice)} -{" "}
+                    {formatCurrency(pricing.weekdaySupplierPrice)}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    Lợi nhuận ngày đặc biệt
+                  </span>
+                  <strong className="text-sm">
+                    {formatCurrency(specialExpectedProfit)}
+                  </strong>
+                  <span className="text-xs text-muted-foreground">
+                    {formatCurrency(pricing.specialCustomerPrice)} -{" "}
+                    {formatCurrency(pricing.specialSupplierPrice)}
+                  </span>
+                </div>
+              </div>
+
               <Field className="lg:col-span-2">
-                <FieldLabel htmlFor="price-note">Ghi chú giá</FieldLabel>
+                <FieldLabel htmlFor="price-note">
+                  Ghi chú chính sách giá
+                </FieldLabel>
                 <Textarea
                   id="price-note"
-                  value={draft.pricing.priceNote}
+                  value={pricing.priceNote}
                   onChange={(event) =>
                     updatePricing({ priceNote: event.target.value })
                   }
                 />
+                <FieldDescription>
+                  Mô tả giá ngày thường, cuối tuần, lễ, tết, số đêm/giờ tối
+                  thiểu, phụ thu và điều kiện cần xác nhận lại với nhà cung cấp.
+                </FieldDescription>
               </Field>
             </FieldGroup>
           </CardContent>
@@ -1501,6 +1663,57 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
 
         <Card>
           <CardHeader>
+            <CardTitle>Nội bộ</CardTitle>
+            <CardDescription>
+              Chỉ dùng cho vận hành admin, không hiển thị trên trang khách.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup className="grid gap-4 lg:grid-cols-2">
+              <Field
+                data-invalid={Boolean(errors.internalPolicyUrl)}
+                className="lg:col-span-2"
+              >
+                <FieldLabel htmlFor="internal-policy-url">
+                  Link chính sách nội bộ
+                </FieldLabel>
+                <Input
+                  id="internal-policy-url"
+                  type="url"
+                  value={draft.internalPolicyUrl ?? ""}
+                  placeholder="https://..."
+                  onChange={(event) => {
+                    updateRoom({ internalPolicyUrl: event.target.value })
+                    clearError("internalPolicyUrl")
+                  }}
+                  aria-invalid={Boolean(errors.internalPolicyUrl)}
+                />
+                <FieldDescription>
+                  Link tài liệu chính sách/phụ thu do nhà cung cấp gửi, chỉ để
+                  đội nội bộ đối chiếu.
+                </FieldDescription>
+                <FieldError>{errors.internalPolicyUrl}</FieldError>
+              </Field>
+              <Field className="lg:col-span-2">
+                <FieldLabel htmlFor="internal-note">Ghi chú nội bộ</FieldLabel>
+                <Textarea
+                  id="internal-note"
+                  value={draft.internalNote ?? ""}
+                  onChange={(event) =>
+                    updateRoom({ internalNote: event.target.value })
+                  }
+                />
+                <FieldDescription>
+                  Ví dụ: sức chứa chuẩn, điều kiện trẻ em, phụ thu vượt số
+                  người, lưu ý cần hỏi lại nhà cung cấp.
+                </FieldDescription>
+              </Field>
+            </FieldGroup>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Hiển thị</CardTitle>
             <CardDescription>
               SEO, slug, thumbnail chia sẻ và thứ tự hiển thị được hệ thống tự
@@ -1602,6 +1815,9 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
                 {draft.description || "Chưa có mô tả hiển thị."}
               </p>
               <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">
+                  {getRoomGuestSummary(draft.capacity)}
+                </Badge>
                 {draft.accommodationTypes.map((type) => (
                   <Badge key={type} variant="outline">
                     {accommodationTypeLabels[type]}
@@ -1615,10 +1831,14 @@ export function RoomForm({ room, mode, onSave }: RoomFormProps) {
               </div>
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">
-                  Giá tham khảo
+                  Giá bán ngày thường
                 </span>
                 <strong className="text-base">
-                  {formatCurrency(draft.pricing.referencePrice)}
+                  {formatCurrency(pricing.weekdayCustomerPrice)}
+                  {getPriceUnitSuffix(
+                    pricing.weekdayPriceUnit,
+                    pricing.weekdayUnitCount
+                  )}
                 </strong>
               </div>
             </div>

@@ -23,9 +23,9 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Roovea.com | Tìm nơi lưu trú",
+  title: "Roovea.com | Tìm phòng trọ và nơi lưu trú",
   description:
-    "Roovea.com giúp khách tìm nơi lưu trú, xem phòng nhanh và liên hệ tư vấn trực tiếp.",
+    "Roovea.com giúp khách tìm phòng trọ tại TP.HCM, nơi lưu trú du lịch và liên hệ tư vấn trực tiếp.",
 }
 
 export const dynamic = "force-dynamic"

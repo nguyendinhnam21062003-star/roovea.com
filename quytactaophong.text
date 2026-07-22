@@ -1,0 +1,252 @@
+QUY TAC TAO PHONG ROOVEA TU MO TA TU DO
+
+Muc tieu:
+Chuyen thong tin phong tu loi van hoac van ban khong co cau truc thanh mot JSON duy nhat de import vao he thong Roovea Admin.
+
+Nguyen tac dau ra:
+1. Chi tra ve JSON hop le, khong boc trong markdown, khong them giai thich ben ngoai JSON.
+2. Neu thieu thong tin, dung chuoi rong "", mang rong [], so 0, hoac gia tri mac dinh hop ly theo schema.
+3. Khong tu bia thong tin quan trong nhu gia, dia chi, link, phu thu neu nguon khong noi ro.
+4. Moi gia tri tien te la so VND, khong co dau cham, dau phay, ky tu "d" hoac "VND".
+5. Gia mac dinh hien thi tren card phong la "pricing.weekdayCustomerPrice" kem don vi "pricing.weekdayPriceUnit" va "pricing.weekdayUnitCount". Dong thoi lap lai gia nay vao "pricing.referencePrice" de tuong thich he thong.
+6. Gia mua ngay thuong la "pricing.weekdaySupplierPrice". Dong thoi lap lai gia nay vao "pricing.supplierPrice" de tuong thich he thong.
+7. Gia ngay dac biet dung cho ngay con lai trong tuan, le, tet:
+   - "pricing.specialSupplierPrice": gia mua ngay dac biet.
+   - "pricing.specialCustomerPrice": gia ban ngay dac biet.
+   - Neu khong ro thi de 0 va ghi can xac nhan vao "pricing.priceNote" hoac "internalNote".
+8. Neu nha cung cap bao gia phuc tap theo ngay thuong, cuoi tuan, le, so dem/gio toi thieu, phu thu, hay dieu kien xac nhan lai, ghi day du vao "pricing.priceNote".
+9. Suc chua tach rieng:
+   - "capacity.maxAdults": so nguoi lon toi da.
+   - "capacity.maxChildren": so tre em toi da.
+   - "capacity.childAgeMax": tuoi toi da duoc tinh la tre em. Mac dinh 6 neu khong noi ro.
+   - Neu chi biet tong so khach, dien tong do vao "capacity.maxAdults" va de "capacity.maxChildren": 0.
+10. Cac thong tin chi noi bo, khong hien thi cho khach, dua vao:
+   - "internalNote": ghi chu van hanh noi bo, dieu kien tuoi tre em, phu thu vuot nguoi, diem can hoi lai nha cung cap.
+   - "internalPolicyUrl": link tai lieu/chinh sach noi bo neu co, neu khong co de "".
+11. Chinh sach khach co the thay tren he thong de trong "policies". Khong dua ghi chu noi bo vao "policies.otherPolicy".
+
+JSON schema can tra ve:
+{
+  "name": "string",
+  "roomCode": "string",
+  "accommodationTypes": ["homestay"],
+  "otherAccommodationType": "",
+  "description": "string toi da 1000 ky tu",
+  "areaM2": 0,
+  "capacity": {
+    "maxAdults": 1,
+    "maxChildren": 0,
+    "childAgeMax": 6,
+    "bedrooms": 0,
+    "bathrooms": 0,
+    "beds": 0
+  },
+  "supplier": {
+    "supplierCode": "",
+    "fullName": ""
+  },
+  "pricing": {
+    "supplierPrice": 0,
+    "commissionType": "percentage",
+    "commissionValue": 0,
+    "referencePrice": 0,
+    "priceUnit": "per_night",
+    "weekdaySupplierPrice": 0,
+    "weekdayCustomerPrice": 0,
+    "weekdayPriceUnit": "per_night",
+    "weekdayUnitCount": 1,
+    "weekdayDays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "specialSupplierPrice": 0,
+    "specialCustomerPrice": 0,
+    "specialPriceUnit": "per_night",
+    "specialUnitCount": 1,
+    "priceNote": ""
+  },
+  "location": {
+    "provinceCity": "",
+    "districtCity": "",
+    "addressDetail": "",
+    "googleMapsUrl": "",
+    "nearbyTags": [],
+    "distanceToCenter": "not_declared"
+  },
+  "policies": {
+    "checkInTime": "14:00",
+    "checkOutTime": "12:00",
+    "smoking": "not_allowed",
+    "pets": "not_allowed",
+    "cancellationType": "conditional",
+    "cancellationDetail": "",
+    "depositRequired": false,
+    "depositDetail": "",
+    "minimumNights": 1,
+    "quietHours": "",
+    "otherPolicy": ""
+  },
+  "amenities": [],
+  "customAmenities": [],
+  "media": {
+    "images": [],
+    "videoUrls": []
+  },
+  "internalNote": "",
+  "internalPolicyUrl": "",
+  "isFeatured": false
+}
+
+Gia tri enum hop le:
+
+accommodationTypes:
+- "guesthouse": nha nghi
+- "hotel": khach san
+- "apartment": can ho/chung cu
+- "whole_house": nha nguyen can
+- "cruise": du thuyen
+- "villa": villa/biet thu
+- "resort": resort
+- "homestay": homestay
+- "studio": studio
+- "other": khac
+
+pricing.commissionType:
+- "percentage": hoa hong theo phan tram
+- "fixed": hoa hong co dinh
+
+pricing.priceUnit:
+- "per_night": theo dem
+- "per_hour": theo gio
+
+pricing.weekdayPriceUnit va pricing.specialPriceUnit:
+- "per_night": theo dem
+- "per_hour": theo gio
+
+pricing.weekdayDays:
+- "monday": thu 2
+- "tuesday": thu 3
+- "wednesday": thu 4
+- "thursday": thu 5
+- "friday": thu 6
+- "saturday": thu 7
+- "sunday": chu nhat
+
+location.distanceToCenter:
+- "under_3km"
+- "from_3_to_5km"
+- "over_5km"
+- "not_declared"
+
+location.nearbyTags:
+- "near_beach"
+- "near_center"
+- "near_airport"
+- "near_bus_station"
+- "near_attraction"
+- "near_market"
+- "other"
+
+policies.smoking:
+- "allowed"
+- "not_allowed"
+- "designated_area"
+
+policies.pets:
+- "allowed"
+- "not_allowed"
+- "conditional"
+
+policies.cancellationType:
+- "not_allowed"
+- "free_cancellation"
+- "conditional"
+
+Quy tac dien gia:
+1. Neu co gia ngay thuong va cuoi tuan:
+   - Dien gia mua ngay thuong vao "weekdaySupplierPrice".
+   - Dien gia ban ngay thuong vao "weekdayCustomerPrice" va "referencePrice".
+   - Dien cac thu duoc xem la ngay thuong vao "weekdayDays".
+   - Dien gia mua/ban ngay dac biet vao "specialSupplierPrice"/"specialCustomerPrice".
+   - Ghi day du gia ngay thuong, cuoi tuan, le, tet, so dem/gio toi thieu vao "priceNote".
+2. Neu co gia 2 dem hoac 3 gio, khong chia ve 1 dem/gio trong field gia. Dien so don vi vao "weekdayUnitCount" hoac "specialUnitCount", vi du 2 dem => unitCount: 2.
+3. Neu co gia le/tet nhung chua ro so cu the, ghi "Gia le/tet can xac nhan lai voi nha cung cap" vao "priceNote" va/hoac "internalNote".
+4. Neu khong biet gia nha cung cap, de gia mua tuong ung la 0 va ghi can xac nhan vao "internalNote".
+5. Neu gia ban cho khach da duoc nguoi dung noi ro, dung gia do cho field "weekdayCustomerPrice" hoac "specialCustomerPrice", khong tu tinh lai.
+
+Quy tac dien suc chua:
+1. "2 nguoi lon + 1 tre em duoi 6 tuoi" => maxAdults: 2, maxChildren: 1, childAgeMax: 6.
+2. "toi da 4 khach" khong noi ro nguoi lon/tre em => maxAdults: 4, maxChildren: 0.
+3. Neu tre em duoi 12 tuoi, dien childAgeMax: 12. Neu khong noi ro, dung mac dinh 6.
+4. Dieu kien tuoi tre em, phu thu vuot nguoi, phat sai so nguoi: ghi vao "internalNote". Neu day la chinh sach khach can biet, ghi tom tat vao "policies.otherPolicy" nua.
+
+Quy tac dien noi bo:
+1. "internalNote" dung cho nhan vien Roovea, khong viet nhu noi dung marketing.
+2. Neu co link file bang gia, link Zalo note, Google Docs, Notion, sheet chinh sach, dua vao "internalPolicyUrl".
+3. Khong dua CCCD, thong tin nhay cam, mat khau, token vao JSON.
+
+Vi du dau ra:
+{
+  "name": "Villa 3 phong ngu gan bien An Bang",
+  "roomCode": "",
+  "accommodationTypes": ["villa"],
+  "otherAccommodationType": "",
+  "description": "Villa rieng tu gan bien An Bang, phu hop gia dinh hoac nhom ban.",
+  "areaM2": 120,
+  "capacity": {
+    "maxAdults": 6,
+    "maxChildren": 2,
+    "childAgeMax": 6,
+    "bedrooms": 3,
+    "bathrooms": 3,
+    "beds": 4
+  },
+  "supplier": {
+    "supplierCode": "NCC-000001",
+    "fullName": ""
+  },
+  "pricing": {
+    "supplierPrice": 2500000,
+    "commissionType": "fixed",
+    "commissionValue": 500000,
+    "referencePrice": 3000000,
+    "priceUnit": "per_night",
+    "weekdaySupplierPrice": 2500000,
+    "weekdayCustomerPrice": 3000000,
+    "weekdayPriceUnit": "per_night",
+    "weekdayUnitCount": 1,
+    "weekdayDays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "specialSupplierPrice": 7000000,
+    "specialCustomerPrice": 8200000,
+    "specialPriceUnit": "per_night",
+    "specialUnitCount": 2,
+    "priceNote": "Gia ban ngay thuong 3.000.000 VND/dem tu thu 2 den thu 6. Cuoi tuan gia mua 7.000.000 VND/2 dem, gia ban 8.200.000 VND/2 dem, toi thieu 2 dem. Le/tet can xac nhan lai truoc khi bao khach."
+  },
+  "location": {
+    "provinceCity": "Quang Nam",
+    "districtCity": "Hoi An",
+    "addressDetail": "Gan bien An Bang, Hoi An, Quang Nam",
+    "googleMapsUrl": "",
+    "nearbyTags": ["near_beach"],
+    "distanceToCenter": "from_3_to_5km"
+  },
+  "policies": {
+    "checkInTime": "14:00",
+    "checkOutTime": "12:00",
+    "smoking": "not_allowed",
+    "pets": "conditional",
+    "cancellationType": "conditional",
+    "cancellationDetail": "",
+    "depositRequired": true,
+    "depositDetail": "Can dat coc theo yeu cau nha cung cap.",
+    "minimumNights": 1,
+    "quietHours": "",
+    "otherPolicy": "Suc chua tieu chuan 6 nguoi lon va 2 tre em. Vuot so nguoi can xac nhan phu thu."
+  },
+  "amenities": [],
+  "customAmenities": [],
+  "media": {
+    "images": [],
+    "videoUrls": []
+  },
+  "internalNote": "Tre em ap dung duoi 6 tuoi. Neu vuot so nguoi hoac sai co cau khach, can hoi nha cung cap ve phu thu tung nguoi truoc khi chot.",
+  "internalPolicyUrl": "",
+  "isFeatured": false
+}

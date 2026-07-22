@@ -55,6 +55,32 @@ function getRoomImageContentType(fileName: string) {
   return contentTypesByExtension.get(extension) ?? null
 }
 
+function hasValidImageSignature(bytes: Buffer, contentType: string) {
+  if (contentType === "image/jpeg") {
+    return (
+      bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff
+    )
+  }
+
+  if (contentType === "image/png") {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+    return signature.every((value, index) => bytes[index] === value)
+  }
+
+  if (contentType === "image/webp") {
+    return (
+      bytes.length >= 12 &&
+      bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
+      bytes.subarray(8, 12).toString("ascii") === "WEBP"
+    )
+  }
+
+  return false
+}
+
 export async function saveRoomImage(file: File): Promise<StoredMedia> {
   const extension = allowedImageTypes.get(file.type)
 
@@ -66,15 +92,22 @@ export async function saveRoomImage(file: File): Promise<StoredMedia> {
     throw new Error("Ảnh tối đa 8MB.")
   }
 
+  if (file.size === 0) {
+    throw new Error("File ảnh đang trống.")
+  }
+
+  const bytes = Buffer.from(await file.arrayBuffer())
+
+  if (!hasValidImageSignature(bytes, file.type)) {
+    throw new Error("Nội dung file không khớp định dạng ảnh.")
+  }
+
   const id = makeId("room-image")
   const fileName = `${id}.${extension}`
   const outputDir = getRoomUploadDir()
 
   await mkdir(outputDir, { recursive: true })
-  await writeFile(
-    path.join(outputDir, fileName),
-    Buffer.from(await file.arrayBuffer())
-  )
+  await writeFile(path.join(outputDir, fileName), bytes)
 
   return {
     id,

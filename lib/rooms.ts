@@ -1,7 +1,9 @@
 import { accommodationTypeLabels } from "@/lib/admin/options"
 import type {
   AccommodationType,
+  PriceUnit,
   RoomPolicies as AdminRoomPolicies,
+  Weekday,
 } from "@/lib/admin/types"
 
 export type RoomMedia = {
@@ -16,7 +18,12 @@ export type PublicRoom = {
   code: string
   name: string
   referencePrice: number
-  strikePrice: number
+  priceUnit: PriceUnit
+  priceUnitCount: number
+  specialPrice: number
+  specialPriceUnit: PriceUnit
+  specialPriceUnitCount: number
+  weekdayDays: Weekday[]
   media: RoomMedia[]
   description: string
   locationLevel1: string
@@ -29,6 +36,9 @@ export type PublicRoom = {
   otherAccommodationType?: string
   bedrooms: number
   guests: number
+  adultGuests: number
+  childGuests: number
+  childAgeMax: number
   area: string
   highlights: string[]
   id: string
@@ -115,7 +125,11 @@ export function getAccommodationTypeLabels(
   const uniqueLabels = Array.from(new Set(labels.filter(Boolean)))
   const fallbackLabel = getAccommodationTypeFromName(room)
 
-  return uniqueLabels.length ? uniqueLabels : fallbackLabel ? [fallbackLabel] : []
+  return uniqueLabels.length
+    ? uniqueLabels
+    : fallbackLabel
+      ? [fallbackLabel]
+      : []
 }
 
 export function getAccommodationType(
@@ -131,19 +145,53 @@ export function getBathroomCount(room: Pick<PublicRoom, "bedrooms">) {
   return Math.max(1, Math.min(4, Math.ceil(room.bedrooms * 0.75)))
 }
 
-export function getRoomDiscount(
-  room: Pick<PublicRoom, "referencePrice" | "strikePrice">
-) {
-  const saving = room.strikePrice - room.referencePrice
+export function getRoomPriceSuffix(unit: PriceUnit, unitCount = 1) {
+  const count = Math.max(1, Math.floor(unitCount))
+  const label = unit === "per_hour" ? "giờ" : "đêm"
 
-  if (saving <= 0) {
+  return count === 1 ? `/${label}` : `/${count} ${label}`
+}
+
+export function getRoomDefaultPriceSuffix(
+  room: Pick<PublicRoom, "priceUnit" | "priceUnitCount">
+) {
+  return getRoomPriceSuffix(room.priceUnit, room.priceUnitCount)
+}
+
+export function getRoomSpecialPriceText(
+  room: Pick<
+    PublicRoom,
+    "specialPrice" | "specialPriceUnit" | "specialPriceUnitCount"
+  >
+) {
+  if (room.specialPrice <= 0) {
     return null
   }
 
-  return {
-    percent: Math.round((saving / room.strikePrice) * 100),
-    saving,
+  return `${new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+    maximumFractionDigits: 0,
+  }).format(room.specialPrice)}${getRoomPriceSuffix(
+    room.specialPriceUnit,
+    room.specialPriceUnitCount
+  )}`
+}
+
+export function getRoomGuestBreakdown(
+  room: Pick<
+    PublicRoom,
+    "adultGuests" | "childGuests" | "childAgeMax" | "guests"
+  >
+) {
+  const adults = room.adultGuests > 0 ? room.adultGuests : room.guests
+  const parts = [`${adults} người lớn`]
+
+  if (room.childGuests > 0) {
+    parts.push(`${room.childGuests} trẻ em (<= ${room.childAgeMax} tuổi)`)
   }
+
+  return parts.join(" | ")
 }
 
 export function getRoomPolicies(room: PublicRoom): RoomPolicies {

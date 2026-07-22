@@ -1,0 +1,67 @@
+{
+  "name": "Villa 3 phòng ngủ hồ bơi riêng Hội An",
+  "roomCode": "",
+  "accommodationTypes": ["villa", "whole_house"],
+  "otherAccommodationType": "",
+  "description": "Villa nguyên căn có hồ bơi riêng, phù hợp gia đình hoặc nhóm bạn cần không gian riêng tư tại Hội An. Phòng có bếp, phòng khách, sân hiên và khu sinh hoạt chung thoáng.",
+  "areaM2": 140,
+  "capacity": {
+    "maxAdults": 6,
+    "maxChildren": 2,
+    "childAgeMax": 8,
+    "bedrooms": 3,
+    "bathrooms": 3,
+    "beds": 4
+  },
+  "supplier": {
+    "supplierCode": "",
+    "fullName": "Nhà cung cấp test Hội An"
+  },
+  "pricing": {
+    "supplierPrice": 2800000,
+    "commissionType": "percentage",
+    "commissionValue": 0,
+    "referencePrice": 3400000,
+    "priceUnit": "per_night",
+    "weekdaySupplierPrice": 2800000,
+    "weekdayCustomerPrice": 3400000,
+    "weekdayPriceUnit": "per_night",
+    "weekdayUnitCount": 1,
+    "weekdayDays": ["monday", "tuesday", "wednesday", "thursday"],
+    "specialSupplierPrice": 7600000,
+    "specialCustomerPrice": 8900000,
+    "specialPriceUnit": "per_night",
+    "specialUnitCount": 2,
+    "priceNote": "Ngày thường áp dụng từ thứ 2 đến thứ 5: giá bán 3.400.000 VND/đêm. Thứ 6, thứ 7, Chủ nhật, lễ và tết áp dụng giá ngày đặc biệt: 8.900.000 VND/2 đêm, tối thiểu 2 đêm. Giá lễ/tết lớn cần xác nhận lại trước khi báo khách."
+  },
+  "location": {
+    "provinceCity": "Quảng Nam",
+    "districtCity": "Hội An",
+    "addressDetail": "Khu Cẩm Thanh, Hội An, Quảng Nam",
+    "googleMapsUrl": "https://maps.google.com/?q=Cam+Thanh+Hoi+An",
+    "nearbyTags": ["near_attraction", "near_market"],
+    "distanceToCenter": "from_3_to_5km"
+  },
+  "policies": {
+    "checkInTime": "14:00",
+    "checkOutTime": "12:00",
+    "smoking": "designated_area",
+    "pets": "conditional",
+    "cancellationType": "conditional",
+    "cancellationDetail": "Chính sách hủy phụ thuộc ngày đặt và mùa cao điểm, cần xác nhận lại khi chốt booking.",
+    "depositRequired": true,
+    "depositDetail": "Cọc 50% sau khi xác nhận còn phòng.",
+    "minimumNights": 1,
+    "quietHours": "22:00 - 07:00",
+    "otherPolicy": "Sức chứa tiêu chuẩn 6 người lớn và 2 trẻ em dưới hoặc bằng 8 tuổi. Khách vượt số lượng cần xác nhận phụ thu trước khi nhận phòng."
+  },
+  "amenities": ["wifi", "air_conditioner", "kitchen", "parking", "pool"],
+  "customAmenities": ["Hồ bơi riêng", "Bếp đầy đủ dụng cụ", "Sân BBQ", "Máy giặt"],
+  "media": {
+    "images": [],
+    "videoUrls": []
+  },
+  "internalNote": "Mock test schema giá mới. Trẻ em tính đến 8 tuổi. Nếu vượt 6 người lớn hoặc 2 trẻ em, cần hỏi nhà cung cấp về phụ thu từng người. Giá ngày đặc biệt đã là giá bán cho khách theo 2 đêm.",
+  "internalPolicyUrl": "https://docs.google.com/document/d/test-room-policy",
+  "isFeatured": false
+}

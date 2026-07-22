@@ -1,24 +1,19 @@
 import Image from "next/image"
 import Link from "next/link"
 
-import { ContactActions } from "@/components/contact-actions"
+import { SiteHeaderActions } from "@/components/site-header-actions"
 import { Button } from "@/components/ui/button"
+import { getUserSession } from "@/lib/auth/user-session"
+import { siteNavItems } from "@/lib/site-nav"
 import { cn } from "@/lib/utils"
-
-const navItems = [
-  { label: "Trang chủ", href: "/" },
-  { label: "Tìm phòng", href: "/#tim-phong" },
-  { label: "Tour du lịch", href: "/#lien-he" },
-  { label: "Vé máy bay", href: "/#lien-he" },
-  { label: "Hướng dẫn viên", href: "/#lien-he" },
-  { label: "Đối tác", href: "/#lien-he" },
-]
 
 type SiteHeaderProps = {
   className?: string
 }
 
-export function SiteHeader({ className }: SiteHeaderProps) {
+export async function SiteHeader({ className }: SiteHeaderProps) {
+  const session = await getUserSession()
+
   return (
     <header
       className={cn("sticky top-0 z-40 border-b bg-background", className)}
@@ -38,35 +33,24 @@ export function SiteHeader({ className }: SiteHeaderProps) {
           <span>Roovea</span>
         </Link>
         <nav className="hidden min-w-0 flex-1 items-center justify-center gap-1 lg:flex">
-          {navItems.map((item) => (
-            <Button
-              key={item.href + item.label}
-              asChild
-              variant="ghost"
-              size="sm"
-            >
+          {siteNavItems.map((item) => (
+            <Button key={item.href} asChild variant="ghost" size="sm">
               <Link href={item.href}>{item.label}</Link>
             </Button>
           ))}
         </nav>
-        <ContactActions
-          className="ml-auto hidden sm:flex"
-          label="Tư vấn nhanh"
-          triggerClassName="h-7"
+        <SiteHeaderActions
+          user={
+            session
+              ? {
+                  displayName: session.user.displayName,
+                  email: session.user.email,
+                  isVerified: session.user.isVerified,
+                }
+              : null
+          }
         />
       </div>
-      <nav className="flex gap-1 overflow-x-auto px-4 py-2 sm:px-6 lg:hidden">
-        {navItems.map((item) => (
-          <Button
-            key={item.href + item.label}
-            asChild
-            variant="ghost"
-            size="sm"
-          >
-            <Link href={item.href}>{item.label}</Link>
-          </Button>
-        ))}
-      </nav>
     </header>
   )
 }

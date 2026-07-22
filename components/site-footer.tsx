@@ -32,20 +32,20 @@ export function SiteFooter() {
               <span>Roovea</span>
             </Link>
             <p className="max-w-md text-sm text-muted-foreground">
-              Roovea kết nối khách hàng với nơi lưu trú phù hợp, ưu tiên tốc độ
-              tư vấn và thông tin phòng rõ ràng.
+              Roovea hỗ trợ tìm phòng trọ và nơi lưu trú phù hợp, ưu tiên thông
+              tin rõ ràng và tư vấn trực tiếp trong quá trình kết nối.
             </p>
           </div>
           <div className="flex flex-col gap-2 text-sm">
             <p className="font-medium">Dịch vụ</p>
-            <Link href="/#tim-phong" className="text-muted-foreground">
-              Tìm phòng
+            <Link href="/timphongtro" className="text-muted-foreground">
+              Tìm phòng trọ
             </Link>
-            <Link href="/#lien-he" className="text-muted-foreground">
-              Tour du lịch
+            <Link href="/timhomestay" className="text-muted-foreground">
+              Tìm homestay
             </Link>
-            <Link href="/#lien-he" className="text-muted-foreground">
-              Vé máy bay
+            <Link href="/doitac" className="text-muted-foreground">
+              Đối tác
             </Link>
           </div>
           <div className="flex flex-col gap-2 text-sm">
@@ -73,9 +73,7 @@ export function SiteFooter() {
           </div>
         </div>
         <Separator />
-        <p className="text-xs text-muted-foreground">
-          © 2026 Roovea.com
-        </p>
+        <p className="text-xs text-muted-foreground">© 2026 Roovea.com</p>
       </div>
     </footer>
   )

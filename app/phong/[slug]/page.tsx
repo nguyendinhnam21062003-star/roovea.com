@@ -34,8 +34,10 @@ import { getVideoEmbedUrl } from "@/lib/media"
 import {
   getAccommodationType,
   getBathroomCount,
-  getRoomDiscount,
+  getRoomDefaultPriceSuffix,
+  getRoomGuestBreakdown,
   getRoomPolicies,
+  getRoomSpecialPriceText,
 } from "@/lib/rooms"
 import { getPublicRoomBySlug, getPublicRooms } from "@/lib/rooms-data"
 
@@ -74,8 +76,8 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
   const videos = room.media.filter((item) => item.type === "video")
   const accommodationType = getAccommodationType(room)
   const bathrooms = getBathroomCount(room)
-  const discount = getRoomDiscount(room)
   const policies = getRoomPolicies(room)
+  const specialPriceText = getRoomSpecialPriceText(room)
   const fullAddress = `${room.address}, ${room.locationLevel1}`
   const checkTimePolicyItems = [
     {
@@ -102,7 +104,7 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-2 pb-5 text-sm text-muted-foreground">
           <Link href="/">Trang chủ</Link>
           <ArrowRightIcon className="size-3" />
-          <Link href="/#tim-phong">Tìm phòng</Link>
+          <Link href="/timhomestay#timphong">Tìm homestay</Link>
           <ArrowRightIcon className="size-3" />
           <span className="truncate text-foreground">{room.name}</span>
         </div>
@@ -120,28 +122,26 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
             <Card>
               <CardHeader>
                 <CardDescription>
-                  Giá tham khảo · Mã phòng #{room.code}
+                  Giá bán ngày thường · Mã phòng #{room.code}
                 </CardDescription>
                 <CardTitle>Thông tin đặt phòng</CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-2xl font-semibold">
                     {formatCurrency(room.referencePrice)}
+                    {getRoomDefaultPriceSuffix(room)}
                   </span>
                 </div>
-                <CardDescription>
-                  <span className="line-through">
-                    {formatCurrency(room.strikePrice)}
-                  </span>
-                  {discount ? (
-                    <span> · Tiết kiệm {formatCurrency(discount.saving)}</span>
-                  ) : null}
-                </CardDescription>
+                {specialPriceText ? (
+                  <CardDescription>
+                    Giá ngày đặc biệt: {specialPriceText}
+                  </CardDescription>
+                ) : null}
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <BookingFact
                     icon={UsersThreeIcon}
-                    label={`${room.guests} khách`}
+                    label={getRoomGuestBreakdown(room)}
                   />
                   <BookingFact icon={BedIcon} label={`${room.bedrooms} PN`} />
                   <BookingFact icon={BathtubIcon} label={`${bathrooms} PT`} />
@@ -205,7 +205,7 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
             <DetailFact
               icon={UsersThreeIcon}
-              title={`${room.guests} khách`}
+              title={getRoomGuestBreakdown(room)}
               text="Sức chứa"
             />
             <DetailFact
@@ -263,6 +263,12 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
                       text={item.text}
                     />
                   ))}
+                  {specialPriceText ? (
+                    <CheckTimeBadge
+                      label="Giá ngày đặc biệt"
+                      text={specialPriceText}
+                    />
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
@@ -348,7 +354,7 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
                 </h2>
               </div>
               <Button asChild variant="outline">
-                <Link href="/#tim-phong">Xem tất cả</Link>
+                <Link href="/timhomestay#timphong">Xem tất cả</Link>
               </Button>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
@@ -384,7 +390,7 @@ function BookingFact({
   return (
     <div className="flex min-w-0 flex-col gap-2 border bg-muted/30 p-2">
       <Icon className="size-4 text-muted-foreground" />
-      <span className="truncate">{label}</span>
+      <span className="leading-4">{label}</span>
     </div>
   )
 }
@@ -401,7 +407,7 @@ function DetailFact({
   return (
     <div className="flex min-w-0 flex-col gap-2 border bg-card p-3">
       <Icon className="size-4 text-primary" />
-      <strong className="truncate text-sm">{title}</strong>
+      <strong className="text-sm leading-5">{title}</strong>
       <span className="truncate text-xs text-muted-foreground">{text}</span>
     </div>
   )

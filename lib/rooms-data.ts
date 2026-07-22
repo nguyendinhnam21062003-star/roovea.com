@@ -4,6 +4,10 @@ import { and, asc, eq, isNull } from "drizzle-orm"
 
 import { db } from "@/db/client"
 import { roomMedia, rooms } from "@/db/schema"
+import {
+  normalizeRoomCapacity,
+  normalizeRoomPricing,
+} from "@/lib/admin/helpers"
 import { accommodationTypeLabels, getNearbyTagLabel } from "@/lib/admin/options"
 import { seedRooms } from "@/lib/admin/mock-data"
 import type { AccommodationType, Room, RoomImage } from "@/lib/admin/types"
@@ -37,6 +41,8 @@ function mapRoomImages(images: RoomImage[], roomName: string) {
 }
 
 function mapDemoPublicRoom(room: Room): PublicRoom {
+  const capacity = normalizeRoomCapacity(room.capacity)
+  const pricing = normalizeRoomPricing(room.pricing)
   const imageMedia = mapRoomImages(room.media.images, room.name)
   const videoMedia = room.media.videoUrls.map((url) => ({
     type: "video" as const,
@@ -52,10 +58,13 @@ function mapDemoPublicRoom(room: Room): PublicRoom {
     slug: room.seo.slug,
     code: room.roomCode.replace(/^PH-/, ""),
     name: room.name,
-    referencePrice: room.pricing.referencePrice,
-    strikePrice:
-      room.pricing.strikethroughPrice ||
-      Math.round(room.pricing.referencePrice * 1.15),
+    referencePrice: pricing.weekdayCustomerPrice,
+    priceUnit: pricing.weekdayPriceUnit,
+    priceUnitCount: pricing.weekdayUnitCount,
+    specialPrice: pricing.specialCustomerPrice,
+    specialPriceUnit: pricing.specialPriceUnit,
+    specialPriceUnitCount: pricing.specialUnitCount,
+    weekdayDays: pricing.weekdayDays,
     media: [...imageMedia, ...videoMedia],
     description: room.description,
     locationLevel1: room.location.provinceCity,
@@ -66,11 +75,12 @@ function mapDemoPublicRoom(room: Room): PublicRoom {
     featured: room.isFeatured,
     accommodationTypes: room.accommodationTypes,
     otherAccommodationType: room.otherAccommodationType,
-    bedrooms: room.capacity.bedrooms,
-    guests: room.capacity.maxGuests,
-    area: room.areaM2
-      ? `${room.areaM2} m2`
-      : `${room.capacity.bedrooms} phòng ngủ`,
+    bedrooms: capacity.bedrooms,
+    guests: capacity.maxGuests,
+    adultGuests: capacity.maxAdults,
+    childGuests: capacity.maxChildren,
+    childAgeMax: capacity.childAgeMax,
+    area: room.areaM2 ? `${room.areaM2} m2` : `${capacity.bedrooms} phòng ngủ`,
     highlights:
       highlights.length > 0
         ? highlights
@@ -86,6 +96,32 @@ function getDemoPublicRooms() {
 }
 
 function mapPublicRoom(row: RoomRow, mediaRows: MediaRow[]): PublicRoom {
+  const pricing = normalizeRoomPricing({
+    supplierPrice: numberFromDb(row.supplierPrice),
+    commissionType: row.commissionType,
+    commissionValue: numberFromDb(row.commissionValue),
+    referencePrice: numberFromDb(row.referencePrice),
+    priceUnit: row.priceUnit,
+    weekdaySupplierPrice: numberFromDb(row.weekdaySupplierPrice),
+    specialSupplierPrice: numberFromDb(row.specialSupplierPrice),
+    weekdayCustomerPrice: numberFromDb(row.weekdayCustomerPrice),
+    specialCustomerPrice: numberFromDb(row.specialCustomerPrice),
+    weekdayPriceUnit: row.weekdayPriceUnit,
+    specialPriceUnit: row.specialPriceUnit,
+    weekdayUnitCount: row.weekdayUnitCount,
+    specialUnitCount: row.specialUnitCount,
+    weekdayDays: row.weekdayDays,
+    priceNote: row.priceNote ?? "",
+  })
+  const capacity = normalizeRoomCapacity({
+    maxGuests: row.maxGuests,
+    maxAdults: row.maxAdults,
+    maxChildren: row.maxChildren,
+    childAgeMax: row.childAgeMax,
+    bedrooms: row.bedrooms,
+    bathrooms: row.bathrooms,
+    beds: row.beds,
+  })
   const imageMedia = mediaRows
     .filter((item) => item.type === "image")
     .sort((first, second) => first.sortOrder - second.sortOrder)
@@ -119,10 +155,13 @@ function mapPublicRoom(row: RoomRow, mediaRows: MediaRow[]): PublicRoom {
     slug: row.slug,
     code: row.code.replace(/^PH-/, ""),
     name: row.name,
-    referencePrice: numberFromDb(row.referencePrice),
-    strikePrice:
-      numberFromDb(row.strikethroughPrice) ||
-      Math.round(numberFromDb(row.referencePrice) * 1.15),
+    referencePrice: pricing.weekdayCustomerPrice,
+    priceUnit: pricing.weekdayPriceUnit,
+    priceUnitCount: pricing.weekdayUnitCount,
+    specialPrice: pricing.specialCustomerPrice,
+    specialPriceUnit: pricing.specialPriceUnit,
+    specialPriceUnitCount: pricing.specialUnitCount,
+    weekdayDays: pricing.weekdayDays,
     media: [...imageMedia, ...fallbackMedia, ...videoMedia],
     description: row.description,
     locationLevel1: row.provinceCity,
@@ -133,9 +172,12 @@ function mapPublicRoom(row: RoomRow, mediaRows: MediaRow[]): PublicRoom {
     featured: row.isFeatured,
     accommodationTypes: row.accommodationTypes,
     otherAccommodationType: row.otherAccommodationType ?? undefined,
-    bedrooms: row.bedrooms,
-    guests: row.maxGuests,
-    area: row.areaM2 ? `${row.areaM2} m2` : `${row.bedrooms} phòng ngủ`,
+    bedrooms: capacity.bedrooms,
+    guests: capacity.maxGuests,
+    adultGuests: capacity.maxAdults,
+    childGuests: capacity.maxChildren,
+    childAgeMax: capacity.childAgeMax,
+    area: row.areaM2 ? `${row.areaM2} m2` : `${capacity.bedrooms} phòng ngủ`,
     highlights:
       highlights.length > 0
         ? highlights

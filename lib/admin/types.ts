@@ -19,6 +19,15 @@ export type CommissionType = "percentage" | "fixed"
 
 export type PriceUnit = "per_night" | "per_hour"
 
+export type Weekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday"
+
 export type DistanceToCenter =
   "under_3km" | "from_3_to_5km" | "over_5km" | "not_declared"
 
@@ -64,8 +73,16 @@ export type RoomPricing = {
   commissionType: CommissionType
   commissionValue: number
   referencePrice: number
-  strikethroughPrice?: number
   priceUnit: PriceUnit
+  weekdaySupplierPrice?: number
+  specialSupplierPrice?: number
+  weekdayCustomerPrice?: number
+  specialCustomerPrice?: number
+  weekdayPriceUnit?: PriceUnit
+  specialPriceUnit?: PriceUnit
+  weekdayUnitCount?: number
+  specialUnitCount?: number
+  weekdayDays?: Weekday[]
   priceNote: string
 }
 
@@ -101,6 +118,9 @@ export type RoomSeo = {
 
 export type RoomCapacity = {
   maxGuests: number
+  maxAdults?: number
+  maxChildren?: number
+  childAgeMax?: number
   bedrooms: number
   bathrooms: number
   beds: number
@@ -124,6 +144,8 @@ export type Room = {
   customAmenities: string[]
   media: RoomMedia
   seo: RoomSeo
+  internalNote?: string
+  internalPolicyUrl?: string
   isFeatured: boolean
   displayPriority: number
   createdAt: string

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   BuildingsIcon,
   ChatCircleTextIcon,
+  KeyIcon,
   HouseLineIcon,
   PhoneCallIcon,
   SidebarSimpleIcon,
@@ -20,7 +21,12 @@ import { cn } from "@/lib/utils"
 
 const adminNavItems = [
   {
-    label: "Phòng",
+    label: "Phòng trọ",
+    href: "/admin/phongtro",
+    icon: KeyIcon,
+  },
+  {
+    label: "Homestay/Lưu trú",
     href: "/admin/rooms",
     icon: HouseLineIcon,
   },
@@ -59,7 +65,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <div className="flex min-w-0 items-center gap-2">
                 <SidebarSimpleIcon aria-hidden />
                 <Link
-                  href="/admin/rooms"
+                  href="/admin/phongtro"
                   className="truncate font-heading font-semibold"
                 >
                   Roovea Admin

@@ -1,12 +1,16 @@
 import type {
   CommissionType,
+  PriceUnit,
   Room,
+  RoomCapacity,
   RoomCompletion,
   RoomImage,
   RoomPricing,
   RoomStatus,
   Supplier,
+  Weekday,
 } from "@/lib/admin/types"
+import { defaultWeekdayDays, weekdayLabels } from "@/lib/admin/options"
 
 export function makeId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -94,16 +98,106 @@ export function calculateCommissionAmount(
   return commissionValue
 }
 
-export function calculateExpectedProfit(pricing: RoomPricing) {
-  return (
-    pricing.referencePrice -
-    pricing.supplierPrice +
-    calculateCommissionAmount(
-      pricing.supplierPrice,
-      pricing.commissionType,
-      pricing.commissionValue
-    )
+function normalizeMoney(value: unknown, fallback = 0) {
+  const parsed = typeof value === "number" ? value : Number(value)
+
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : fallback
+}
+
+function normalizePriceUnit(value: unknown, fallback: PriceUnit): PriceUnit {
+  return value === "per_hour" || value === "per_night" ? value : fallback
+}
+
+function normalizeUnitCount(value: unknown, fallback = 1) {
+  return Math.max(1, normalizeInteger(value, fallback))
+}
+
+function normalizeWeekdayDays(value: unknown): Weekday[] {
+  if (!Array.isArray(value)) {
+    return [...defaultWeekdayDays]
+  }
+
+  const days = value.filter((item): item is Weekday =>
+    Object.hasOwn(weekdayLabels, String(item))
   )
+
+  return days.length ? days : [...defaultWeekdayDays]
+}
+
+export function normalizeRoomPricing(
+  pricing: Partial<RoomPricing>
+): RoomPricing & {
+  weekdaySupplierPrice: number
+  specialSupplierPrice: number
+  weekdayCustomerPrice: number
+  specialCustomerPrice: number
+  weekdayPriceUnit: PriceUnit
+  specialPriceUnit: PriceUnit
+  weekdayUnitCount: number
+  specialUnitCount: number
+  weekdayDays: Weekday[]
+} {
+  const legacySupplierPrice = normalizeMoney(pricing.supplierPrice)
+  const legacyCustomerPrice = normalizeMoney(pricing.referencePrice)
+  const weekdaySupplierCandidate = normalizeMoney(pricing.weekdaySupplierPrice)
+  const weekdayCustomerCandidate = normalizeMoney(pricing.weekdayCustomerPrice)
+  const weekdaySupplierPrice =
+    weekdaySupplierCandidate > 0
+      ? weekdaySupplierCandidate
+      : legacySupplierPrice
+  const weekdayCustomerPrice =
+    weekdayCustomerCandidate > 0
+      ? weekdayCustomerCandidate
+      : legacyCustomerPrice
+  const weekdayPriceUnit = normalizePriceUnit(
+    pricing.weekdayPriceUnit,
+    normalizePriceUnit(pricing.priceUnit, "per_night")
+  )
+  const specialPriceUnit = normalizePriceUnit(
+    pricing.specialPriceUnit,
+    weekdayPriceUnit
+  )
+
+  return {
+    supplierPrice: weekdaySupplierPrice,
+    commissionType: pricing.commissionType === "fixed" ? "fixed" : "percentage",
+    commissionValue: Math.max(0, Number(pricing.commissionValue ?? 0)),
+    referencePrice: weekdayCustomerPrice,
+    priceUnit: weekdayPriceUnit,
+    weekdaySupplierPrice,
+    specialSupplierPrice: normalizeMoney(pricing.specialSupplierPrice),
+    weekdayCustomerPrice,
+    specialCustomerPrice: normalizeMoney(pricing.specialCustomerPrice),
+    weekdayPriceUnit,
+    specialPriceUnit,
+    weekdayUnitCount: normalizeUnitCount(pricing.weekdayUnitCount),
+    specialUnitCount: normalizeUnitCount(pricing.specialUnitCount),
+    weekdayDays: normalizeWeekdayDays(pricing.weekdayDays),
+    priceNote: pricing.priceNote ?? "",
+  }
+}
+
+export function calculateExpectedProfit(pricing: RoomPricing) {
+  const normalized = normalizeRoomPricing(pricing)
+
+  return normalized.weekdayCustomerPrice - normalized.weekdaySupplierPrice
+}
+
+export function calculateSpecialExpectedProfit(pricing: RoomPricing) {
+  const normalized = normalizeRoomPricing(pricing)
+
+  return normalized.specialCustomerPrice - normalized.specialSupplierPrice
+}
+
+export function getPriceUnitSuffix(unit: PriceUnit, unitCount = 1) {
+  const count = Math.max(1, Math.floor(unitCount))
+  const label = unit === "per_hour" ? "giờ" : "đêm"
+
+  return count === 1 ? `/${label}` : `/${count} ${label}`
+}
+
+export function getWeekdaySummary(days: Weekday[]) {
+  return days.map((day) => weekdayLabels[day]).join(", ")
 }
 
 export function getRoomThumbnail(room: Room): RoomImage | undefined {
@@ -169,14 +263,16 @@ export function maskCitizenId(value: string) {
 }
 
 export function getRoomCompletion(room: Room): RoomCompletion {
+  const capacity = normalizeRoomCapacity(room.capacity)
+  const pricing = normalizeRoomPricing(room.pricing)
   const sections = {
     basic:
       Boolean(room.name.trim()) &&
       Boolean(room.roomCode.trim()) &&
       room.accommodationTypes.length > 0 &&
-      room.capacity.maxGuests > 0,
+      capacity.maxGuests > 0,
     supplier: Boolean(room.supplierId),
-    pricing: room.pricing.referencePrice > 0,
+    pricing: pricing.weekdayCustomerPrice > 0,
     location:
       Boolean(room.location.provinceCity) &&
       Boolean(room.location.addressDetail.trim()),
@@ -198,7 +294,7 @@ export function getRoomCompletion(room: Room): RoomCompletion {
   }
 
   if (!sections.pricing) {
-    missing.push("Giá tham khảo")
+    missing.push("Giá bán ngày thường")
   }
 
   if (!sections.location) {
@@ -277,4 +373,48 @@ export function copyRoomForDuplicate(room: Room, nextRoomCode: string): Room {
 export function normalizeNumber(value: string, fallback = 0) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function normalizeInteger(value: unknown, fallback = 0) {
+  const parsed = typeof value === "number" ? value : Number(value)
+
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : fallback
+}
+
+export function normalizeRoomCapacity(
+  capacity: Partial<RoomCapacity>
+): RoomCapacity & {
+  maxAdults: number
+  maxChildren: number
+  childAgeMax: number
+} {
+  const fallbackGuests = Math.max(1, normalizeInteger(capacity.maxGuests, 1))
+  const rawAdults = normalizeInteger(capacity.maxAdults, fallbackGuests)
+  const rawChildren = normalizeInteger(capacity.maxChildren, 0)
+  const maxAdults = Math.max(1, rawAdults)
+  const maxChildren = rawChildren
+  const maxGuests = Math.max(1, maxAdults + maxChildren)
+  const childAgeMax = Math.max(1, normalizeInteger(capacity.childAgeMax, 6))
+
+  return {
+    maxGuests,
+    maxAdults,
+    maxChildren,
+    childAgeMax,
+    bedrooms: normalizeInteger(capacity.bedrooms, 0),
+    bathrooms: normalizeInteger(capacity.bathrooms, 0),
+    beds: normalizeInteger(capacity.beds, 0),
+  }
+}
+
+export function getRoomGuestSummary(capacity: Partial<RoomCapacity>) {
+  const normalized = normalizeRoomCapacity(capacity)
+  const parts = [
+    normalized.maxAdults > 0 ? `${normalized.maxAdults} người lớn` : "",
+    normalized.maxChildren > 0
+      ? `${normalized.maxChildren} trẻ em (<= ${normalized.childAgeMax} tuổi)`
+      : "",
+  ].filter(Boolean)
+
+  return parts.length ? parts.join(" | ") : `${normalized.maxGuests} khách`
 }

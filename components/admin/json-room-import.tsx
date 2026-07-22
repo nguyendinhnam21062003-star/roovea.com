@@ -19,9 +19,13 @@ import { roomDescriptionMaxLength } from "@/lib/admin/constants"
 import { formatCurrency } from "@/lib/format"
 import {
   getRoomCompletion,
+  getPriceUnitSuffix,
   hasUnsafeHtml,
+  isValidUrl,
   isWhitelistedVideoUrl,
   makeId,
+  normalizeRoomCapacity,
+  normalizeRoomPricing,
   todayIso,
   withAutomaticRoomSeo,
 } from "@/lib/admin/helpers"
@@ -37,6 +41,7 @@ import type {
   PriceUnit,
   Room,
   RoomImage,
+  Weekday,
 } from "@/lib/admin/types"
 
 type JsonRoomImportProps = {
@@ -52,7 +57,9 @@ const sampleJson = `{
   "description": "Phòng gần biển, phù hợp cho nhóm bạn hoặc gia đình nhỏ.",
   "areaM2": 35,
   "capacity": {
-    "maxGuests": 4,
+    "maxAdults": 2,
+    "maxChildren": 1,
+    "childAgeMax": 6,
     "bedrooms": 1,
     "bathrooms": 1
   },
@@ -65,9 +72,17 @@ const sampleJson = `{
     "commissionType": "percentage",
     "commissionValue": 10,
     "referencePrice": 850000,
-    "strikethroughPrice": 990000,
     "priceUnit": "per_night",
-    "priceNote": ""
+    "weekdaySupplierPrice": 650000,
+    "weekdayCustomerPrice": 850000,
+    "weekdayPriceUnit": "per_night",
+    "weekdayUnitCount": 1,
+    "weekdayDays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "specialSupplierPrice": 1500000,
+    "specialCustomerPrice": 1900000,
+    "specialPriceUnit": "per_night",
+    "specialUnitCount": 2,
+    "priceNote": "Giá bán ngày thường là giá mặc định hiển thị trên card phòng. Cuối tuần, lễ và tết dùng giá ngày đặc biệt, cần xác nhận lại theo chính sách nhà cung cấp."
   },
   "location": {
     "provinceCity": "Quảng Ninh",
@@ -85,6 +100,8 @@ const sampleJson = `{
     "images": [],
     "videoUrls": []
   },
+  "internalNote": "Chính sách sức chứa: 2 người lớn + 1 trẻ em dưới 6 tuổi. Vượt số người cần xác nhận phụ thu.",
+  "internalPolicyUrl": "",
   "isFeatured": false
 }`
 
@@ -127,8 +144,13 @@ function validateJsonShape(value: unknown) {
     errors.push("accommodationTypes: cần ít nhất một loại hình lưu trú.")
   }
 
-  if (numberValue(pricing.referencePrice) <= 0) {
-    errors.push("pricing.referencePrice: cần là số lớn hơn 0.")
+  const weekdayCustomerPrice = numberValue(
+    pricing.weekdayCustomerPrice,
+    numberValue(pricing.referencePrice)
+  )
+
+  if (weekdayCustomerPrice <= 0) {
+    errors.push("pricing.weekdayCustomerPrice: cần là số lớn hơn 0.")
   }
 
   if (!stringValue(location.provinceCity).trim()) {
@@ -139,8 +161,19 @@ function validateJsonShape(value: unknown) {
     errors.push("location.addressDetail: thiếu địa chỉ chi tiết.")
   }
 
-  if (numberValue(capacity.maxGuests) <= 0) {
-    errors.push("capacity.maxGuests: cần là số lớn hơn 0.")
+  const maxAdults = numberValue(
+    capacity.maxAdults,
+    numberValue(capacity.maxGuests)
+  )
+
+  if (maxAdults < 1) {
+    errors.push("capacity.maxAdults: số người lớn tối đa cần lớn hơn 0.")
+  }
+
+  const internalPolicyUrl = stringValue(value.internalPolicyUrl)
+
+  if (internalPolicyUrl && !isValidUrl(internalPolicyUrl)) {
+    errors.push("internalPolicyUrl: cần là URL hợp lệ hoặc để trống.")
   }
 
   if (!stringValue(policies.checkInTime).trim()) {
@@ -191,6 +224,9 @@ export function JsonRoomImport({
 
   const matchedSupplier = previewRoom?.supplierId
     ? suppliers.find((supplier) => supplier.id === previewRoom.supplierId)
+    : null
+  const previewPricing = previewRoom
+    ? normalizeRoomPricing(previewRoom.pricing)
     : null
 
   function parseJson() {
@@ -350,10 +386,17 @@ export function JsonRoomImport({
               </div>
               <div className="grid gap-2 border bg-muted/30 p-3">
                 <span className="text-xs text-muted-foreground">
-                  Giá tham khảo
+                  Giá bán ngày thường
                 </span>
                 <strong>
-                  {formatCurrency(previewRoom.pricing.referencePrice)}
+                  {previewPricing
+                    ? `${formatCurrency(
+                        previewPricing.weekdayCustomerPrice
+                      )}${getPriceUnitSuffix(
+                        previewPricing.weekdayPriceUnit,
+                        previewPricing.weekdayUnitCount
+                      )}`
+                    : formatCurrency(previewRoom.pricing.referencePrice)}
                 </strong>
               </div>
               <div className="grid gap-2 border bg-muted/30 p-3">
@@ -412,6 +455,19 @@ function mapJsonToRoom(
   )
   const images = mapJsonImages(media.images)
 
+  const capacityInfo = normalizeRoomCapacity({
+    maxGuests: numberValue(capacity.maxGuests, 1),
+    maxAdults: numberValue(
+      capacity.maxAdults,
+      numberValue(capacity.maxGuests, 1)
+    ),
+    maxChildren: numberValue(capacity.maxChildren),
+    childAgeMax: numberValue(capacity.childAgeMax, 6),
+    bedrooms: numberValue(capacity.bedrooms),
+    bathrooms: numberValue(capacity.bathrooms),
+    beds: numberValue(capacity.beds),
+  })
+
   const room: Room = withAutomaticRoomSeo({
     id: "",
     roomCode:
@@ -427,14 +483,9 @@ function mapJsonToRoom(
       roomDescriptionMaxLength
     ),
     areaM2: numberValue(record.areaM2) || undefined,
-    capacity: {
-      maxGuests: numberValue(capacity.maxGuests, 1),
-      bedrooms: numberValue(capacity.bedrooms),
-      bathrooms: numberValue(capacity.bathrooms),
-      beds: numberValue(capacity.beds),
-    },
+    capacity: capacityInfo,
     supplierId: matchedSupplier?.id,
-    pricing: {
+    pricing: normalizeRoomPricing({
       supplierPrice: numberValue(pricing.supplierPrice),
       commissionType:
         stringValue(pricing.commissionType, "percentage") === "fixed"
@@ -442,11 +493,27 @@ function mapJsonToRoom(
           : "percentage",
       commissionValue: numberValue(pricing.commissionValue),
       referencePrice: numberValue(pricing.referencePrice),
-      strikethroughPrice: numberValue(pricing.strikethroughPrice) || undefined,
       priceUnit: (stringValue(pricing.priceUnit, "per_night") ||
         "per_night") as PriceUnit,
+      weekdaySupplierPrice: numberValue(
+        pricing.weekdaySupplierPrice,
+        numberValue(pricing.supplierPrice)
+      ),
+      specialSupplierPrice: numberValue(pricing.specialSupplierPrice),
+      weekdayCustomerPrice: numberValue(
+        pricing.weekdayCustomerPrice,
+        numberValue(pricing.referencePrice)
+      ),
+      specialCustomerPrice: numberValue(pricing.specialCustomerPrice),
+      weekdayPriceUnit: (stringValue(pricing.weekdayPriceUnit, "per_night") ||
+        "per_night") as PriceUnit,
+      specialPriceUnit: (stringValue(pricing.specialPriceUnit, "per_night") ||
+        "per_night") as PriceUnit,
+      weekdayUnitCount: numberValue(pricing.weekdayUnitCount, 1),
+      specialUnitCount: numberValue(pricing.specialUnitCount, 1),
+      weekdayDays: stringArray(pricing.weekdayDays) as Weekday[],
       priceNote: stringValue(pricing.priceNote),
-    },
+    }),
     location: {
       provinceCity: stringValue(location.provinceCity),
       districtCity: stringValue(location.districtCity),
@@ -477,6 +544,8 @@ function mapJsonToRoom(
       images,
       videoUrls: stringArray(media.videoUrls),
     },
+    internalNote: stringValue(record.internalNote),
+    internalPolicyUrl: stringValue(record.internalPolicyUrl),
     seo: {
       slug: "",
       metaTitle: "",

@@ -6,6 +6,7 @@ import type {
   RoomStatus,
   ServiceType,
   SupplierStatus,
+  Weekday,
 } from "@/lib/admin/types"
 
 export const roomStatusLabels: Record<RoomStatus, string> = {
@@ -39,6 +40,24 @@ export const priceUnitLabels: Record<PriceUnit, string> = {
   per_night: "Theo đêm",
   per_hour: "Theo giờ",
 }
+
+export const weekdayLabels: Record<Weekday, string> = {
+  monday: "Thứ 2",
+  tuesday: "Thứ 3",
+  wednesday: "Thứ 4",
+  thursday: "Thứ 5",
+  friday: "Thứ 6",
+  saturday: "Thứ 7",
+  sunday: "Chủ nhật",
+}
+
+export const defaultWeekdayDays: Weekday[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+]
 
 export const distanceToCenterLabels: Record<DistanceToCenter, string> = {
   under_3km: "Dưới 3 km",
@@ -88,6 +107,10 @@ export const accommodationTypeOptions = [
 
 export const priceUnitOptions = Object.entries(priceUnitLabels).map(
   ([value, label]) => ({ value: value as PriceUnit, label })
+)
+
+export const weekdayOptions = Object.entries(weekdayLabels).map(
+  ([value, label]) => ({ value: value as Weekday, label })
 )
 
 export const distanceToCenterOptions = Object.entries(

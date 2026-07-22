@@ -1,7 +1,7 @@
 # Roovea.com
 
-Next.js App Router + shadcn/ui frontend with PostgreSQL persistence for rooms,
-suppliers and customer inquiries.
+Next.js App Router + shadcn/ui frontend with PostgreSQL persistence for
+homestays, phòng trọ, suppliers, tài khoản chủ nhà và customer inquiries.
 
 ## Local Setup
 
@@ -57,14 +57,25 @@ npm run auth:hash -- your-password
 Set `ADMIN_EMAIL` to the admin email you want to use. In production, keep only
 `ADMIN_EMAIL` and `ADMIN_PASSWORD_HASH`; do not set `ADMIN_PASSWORD`.
 
-5. Run migrations and seed demo data:
+5. Tạo OAuth 2.0 Client trong Google Cloud Console, sau đó khai báo:
+
+```bash
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+```
+
+Thêm đúng `GOOGLE_REDIRECT_URI` vào danh sách Authorized redirect URIs của
+Google. Ở production, thay giá trị này bằng domain HTTPS thật.
+
+6. Run migrations and seed demo data:
 
 ```bash
 npm run db:migrate
 npm run db:seed
 ```
 
-6. Start Next.js:
+7. Start Next.js:
 
 ```bash
 npm run dev
@@ -72,6 +83,14 @@ npm run dev
 
 Admin is available at `/admin/login`. User-facing inquiry submissions are saved
 from the chat widget to `/admin/messages`.
+
+Các luồng chính:
+
+- `/timphongtro`: tìm phòng trọ tại TP.HCM.
+- `/timhomestay`: tìm homestay và nơi lưu trú du lịch.
+- `/dangnhap`: đăng nhập Google cho chủ nhà.
+- `/taikhoan/tindang`: chủ nhà tự quản lý tin phòng trọ.
+- `/admin/phongtro`: admin quản lý tin phòng trọ và xác minh chủ nhà.
 
 In local development, if `ADMIN_PASSWORD_HASH` is empty, the fallback login is:
 `admin@roovea.local` / `admin123`.
@@ -93,3 +112,5 @@ npm run build
   `.data/uploads/rooms` by default, and are served from `/uploads/rooms/...`.
   Existing files under `public/uploads/rooms` are still read as a fallback.
 - Do not commit real `.env.local` values or generated upload files.
+- Contact do chủ nhà khai báo chỉ hiển thị trong admin. Khách thuê luôn liên hệ
+  Roovea từ trang công khai.

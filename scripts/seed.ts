@@ -1,4 +1,5 @@
 import * as nextEnv from "@next/env"
+import { sql } from "drizzle-orm"
 
 const loadEnvConfig =
   nextEnv.loadEnvConfig ??
@@ -12,16 +13,25 @@ if (!loadEnvConfig) {
 loadEnvConfig(process.cwd())
 
 import {
+  appUsers,
+  appUserSessions,
   auditLogs,
   contactChannels,
   customerInquiries,
+  rentalListingMedia,
+  rentalListings,
   roomMedia,
   rooms,
   suppliers,
 } from "../db/schema"
-import { makeId } from "../lib/admin/helpers"
+import {
+  makeId,
+  normalizeRoomCapacity,
+  normalizeRoomPricing,
+} from "../lib/admin/helpers"
 import { seedRooms, seedSuppliers } from "../lib/admin/mock-data"
 import { defaultContactChannels } from "../lib/contact"
+import { demoRentalListings } from "../lib/rentals/mock-data"
 import { encryptField } from "../lib/security/field-encryption"
 
 async function main() {
@@ -31,6 +41,10 @@ async function main() {
     await db.delete(auditLogs)
     await db.delete(customerInquiries)
     await db.delete(contactChannels)
+    await db.delete(rentalListingMedia)
+    await db.delete(rentalListings)
+    await db.delete(appUserSessions)
+    await db.delete(appUsers)
     await db.delete(roomMedia)
     await db.delete(rooms)
     await db.delete(suppliers)
@@ -80,7 +94,25 @@ async function main() {
       })
     )
 
+    const seededOwnerId = "user-rental-demo"
+
+    await db.insert(appUsers).values({
+      id: seededOwnerId,
+      googleSubject: "seed-google-subject",
+      email: "chunha.demo@roovea.local",
+      displayName: "Chủ nhà demo",
+      phone: "0909000111",
+      zalo: "0909000111",
+      isVerified: true,
+      verifiedAt: new Date(),
+      verifiedBy: "seed@roovea.local",
+      lastLoginAt: new Date(),
+    })
+
     for (const room of seedRooms) {
+      const capacity = normalizeRoomCapacity(room.capacity)
+      const pricing = normalizeRoomPricing(room.pricing)
+
       await db.insert(rooms).values({
         id: room.id,
         code: room.roomCode,
@@ -93,20 +125,29 @@ async function main() {
         otherAccommodationType: room.otherAccommodationType,
         description: room.description,
         areaM2: room.areaM2 ?? null,
-        maxGuests: room.capacity.maxGuests,
-        bedrooms: room.capacity.bedrooms,
-        bathrooms: room.capacity.bathrooms,
-        beds: room.capacity.beds,
+        maxGuests: capacity.maxGuests,
+        maxAdults: capacity.maxAdults,
+        maxChildren: capacity.maxChildren,
+        childAgeMax: capacity.childAgeMax,
+        bedrooms: capacity.bedrooms,
+        bathrooms: capacity.bathrooms,
+        beds: capacity.beds,
         supplierId: room.supplierId ?? null,
-        supplierPrice: String(room.pricing.supplierPrice),
-        commissionType: room.pricing.commissionType,
-        commissionValue: String(room.pricing.commissionValue),
-        referencePrice: String(room.pricing.referencePrice),
-        strikethroughPrice: room.pricing.strikethroughPrice
-          ? String(room.pricing.strikethroughPrice)
-          : null,
-        priceUnit: room.pricing.priceUnit,
-        priceNote: room.pricing.priceNote,
+        supplierPrice: String(pricing.supplierPrice),
+        weekdaySupplierPrice: String(pricing.weekdaySupplierPrice),
+        specialSupplierPrice: String(pricing.specialSupplierPrice),
+        commissionType: pricing.commissionType,
+        commissionValue: String(pricing.commissionValue),
+        referencePrice: String(pricing.referencePrice),
+        weekdayCustomerPrice: String(pricing.weekdayCustomerPrice),
+        specialCustomerPrice: String(pricing.specialCustomerPrice),
+        priceUnit: pricing.priceUnit,
+        weekdayPriceUnit: pricing.weekdayPriceUnit,
+        specialPriceUnit: pricing.specialPriceUnit,
+        weekdayUnitCount: pricing.weekdayUnitCount,
+        specialUnitCount: pricing.specialUnitCount,
+        weekdayDays: pricing.weekdayDays,
+        priceNote: pricing.priceNote,
         provinceCity: room.location.provinceCity,
         districtCity: room.location.districtCity,
         addressDetail: room.location.addressDetail,
@@ -119,6 +160,8 @@ async function main() {
         cancellationType: room.policies.cancellationType,
         amenities: room.amenities,
         customAmenities: room.customAmenities,
+        internalNote: room.internalNote ?? "",
+        internalPolicyUrl: room.internalPolicyUrl ?? "",
         metaTitle: room.seo.metaTitle,
         metaDescription: room.seo.metaDescription,
         createdAt: new Date(room.createdAt),
@@ -152,6 +195,70 @@ async function main() {
         await db.insert(roomMedia).values([...imageRows, ...videoRows])
       }
     }
+
+    for (const [index, rental] of demoRentalListings.entries()) {
+      const isSelfService = index === 0
+
+      await db.insert(rentalListings).values({
+        id: rental.id,
+        code: rental.code,
+        source: isSelfService ? "self_service" : "admin",
+        ownerUserId: isSelfService ? seededOwnerId : null,
+        supplierId: isSelfService
+          ? null
+          : seedSuppliers[index % seedSuppliers.length]?.id,
+        name: rental.name,
+        publicationStatus: rental.publicationStatus,
+        availabilityStatus: rental.availabilityStatus,
+        rentalType: rental.rentalType,
+        otherRentalType: rental.otherRentalType,
+        description: rental.description,
+        monthlyPrice: String(rental.monthlyPrice),
+        areaM2: rental.areaM2,
+        maxOccupants: rental.maxOccupants,
+        city: rental.city,
+        newWard: rental.newWard,
+        legacyWard: rental.legacyWard,
+        legacyDistrict: rental.legacyDistrict,
+        addressDetail: rental.addressDetail,
+        googleMapsUrl: rental.googleMapsUrl,
+        nearbyPlaces: rental.nearbyPlaces,
+        electricityPrice: rental.electricityPrice,
+        waterPrice: rental.waterPrice,
+        otherCosts: rental.otherCosts,
+        amenities: rental.amenities,
+        customAmenities: rental.customAmenities,
+        allowedRules: rental.allowedRules,
+        disallowedRules: rental.disallowedRules,
+        internalNote: rental.internalNote,
+        hiddenReason: rental.hiddenReason,
+        createdAt: new Date(rental.createdAt),
+        updatedAt: new Date(rental.updatedAt),
+        createdBy: isSelfService
+          ? "chunha.demo@roovea.local"
+          : "seed@roovea.local",
+        updatedBy: "seed@roovea.local",
+      })
+
+      if (rental.media.images.length) {
+        await db.insert(rentalListingMedia).values(
+          rental.media.images.map((image, imageIndex) => ({
+            id: image.id,
+            rentalListingId: rental.id,
+            type: "image" as const,
+            url: image.url,
+            provider: "external",
+            caption: image.caption,
+            sortOrder: imageIndex,
+            isThumbnail: image.isThumbnail,
+          }))
+        )
+      }
+    }
+
+    await db.execute(
+      sql`SELECT setval('rental_listing_code_seq', ${demoRentalListings.length}, true)`
+    )
 
     const seededRoom = seedRooms.find((room) => room.status === "published")
 

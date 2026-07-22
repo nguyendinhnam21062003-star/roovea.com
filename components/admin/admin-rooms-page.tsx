@@ -85,11 +85,16 @@ import {
 } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { formatCurrency, formatDate } from "@/lib/format"
-import { getRoomCompletion, getRoomThumbnail } from "@/lib/admin/helpers"
+import {
+  getPriceUnitSuffix,
+  getRoomCompletion,
+  getRoomGuestSummary,
+  getRoomThumbnail,
+  normalizeRoomPricing,
+} from "@/lib/admin/helpers"
 import {
   accommodationTypeLabels,
   accommodationTypeOptions,
-  priceUnitLabels,
   roomStatusLabels,
   roomStatusOptions,
   supplierStatusOptions,
@@ -458,7 +463,7 @@ export function AdminRoomsPage() {
                   <TableHead>Tên phòng</TableHead>
                   <TableHead>Loại hình</TableHead>
                   <TableHead>Khu vực</TableHead>
-                  <TableHead>Giá tham khảo</TableHead>
+                  <TableHead>Giá bán ngày thường</TableHead>
                   <TableHead>Nhà cung cấp</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead>Ngày cập nhật</TableHead>
@@ -554,6 +559,7 @@ function RoomCard({
 }) {
   const thumbnail = getRoomThumbnail(room)
   const completion = getRoomCompletion(room)
+  const pricing = normalizeRoomPricing(room.pricing)
 
   return (
     <Card size="sm" className="pt-0">
@@ -597,13 +603,18 @@ function RoomCard({
               {accommodationTypeLabels[type]}
             </Badge>
           ))}
-          <Badge variant="outline">{room.capacity.maxGuests} khách</Badge>
+          <Badge variant="outline">{getRoomGuestSummary(room.capacity)}</Badge>
         </div>
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground">Giá tham khảo</span>
+          <span className="text-xs text-muted-foreground">
+            Giá bán ngày thường
+          </span>
           <strong>
-            {formatCurrency(room.pricing.referencePrice)} /{" "}
-            {priceUnitLabels[room.pricing.priceUnit]}
+            {formatCurrency(pricing.weekdayCustomerPrice)}
+            {getPriceUnitSuffix(
+              pricing.weekdayPriceUnit,
+              pricing.weekdayUnitCount
+            )}
           </strong>
         </div>
         <div className="text-sm text-muted-foreground">
@@ -654,6 +665,7 @@ function RoomTableRow({
   onToggleStatus: () => void
 }) {
   const thumbnail = getRoomThumbnail(room)
+  const pricing = normalizeRoomPricing(room.pricing)
 
   return (
     <TableRow>
@@ -693,7 +705,10 @@ function RoomTableRow({
           .filter(Boolean)
           .join(", ")}
       </TableCell>
-      <TableCell>{formatCurrency(room.pricing.referencePrice)}</TableCell>
+      <TableCell>
+        {formatCurrency(pricing.weekdayCustomerPrice)}
+        {getPriceUnitSuffix(pricing.weekdayPriceUnit, pricing.weekdayUnitCount)}
+      </TableCell>
       <TableCell>
         {supplier
           ? `${supplier.supplierCode} · ${supplier.fullName}`
@@ -775,6 +790,7 @@ function RoomActions({
 
 function RoomPreviewDialog({ room }: { room: Room }) {
   const thumbnail = getRoomThumbnail(room)
+  const pricing = normalizeRoomPricing(room.pricing)
 
   return (
     <>
@@ -815,14 +831,22 @@ function RoomPreviewDialog({ room }: { room: Room }) {
             {room.description || "Chưa có mô tả hiển thị."}
           </p>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">{room.capacity.maxGuests} khách</Badge>
+            <Badge variant="outline">
+              {getRoomGuestSummary(room.capacity)}
+            </Badge>
             {room.accommodationTypes.map((type) => (
               <Badge key={type} variant="outline">
                 {accommodationTypeLabels[type]}
               </Badge>
             ))}
           </div>
-          <strong>{formatCurrency(room.pricing.referencePrice)}</strong>
+          <strong>
+            {formatCurrency(pricing.weekdayCustomerPrice)}
+            {getPriceUnitSuffix(
+              pricing.weekdayPriceUnit,
+              pricing.weekdayUnitCount
+            )}
+          </strong>
         </div>
       </div>
       <DialogFooter>

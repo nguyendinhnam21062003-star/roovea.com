@@ -52,6 +52,9 @@ export const roomSchema = z.object({
     bathrooms: z.number().int().min(0).default(0),
     bedrooms: z.number().int().min(0).default(0),
     beds: z.number().int().min(0).default(0),
+    childAgeMax: z.number().int().min(1).max(18).default(6),
+    maxAdults: z.number().int().min(1).max(99).default(1),
+    maxChildren: z.number().int().min(0).max(99).default(0),
     maxGuests: z.number().int().min(1).max(99).default(1),
   }),
   createdBy: z.string().trim().optional().default("Admin"),
@@ -59,6 +62,14 @@ export const roomSchema = z.object({
   description: z.string().trim().max(5000).default(""),
   displayPriority: z.number().int().min(0).default(0),
   id: nonEmptyString,
+  internalNote: z.string().trim().optional().default(""),
+  internalPolicyUrl: z
+    .string()
+    .trim()
+    .url()
+    .optional()
+    .or(z.literal(""))
+    .default(""),
   isFeatured: z.boolean().default(false),
   location: z.object({
     addressDetail: nonEmptyString,
@@ -101,8 +112,28 @@ export const roomSchema = z.object({
     priceNote: z.string().trim().optional().default(""),
     priceUnit: z.enum(["per_night", "per_hour"]),
     referencePrice: z.number().min(0),
-    strikethroughPrice: z.number().min(0).optional(),
     supplierPrice: z.number().min(0),
+    specialCustomerPrice: z.number().min(0).default(0),
+    specialPriceUnit: z.enum(["per_night", "per_hour"]).default("per_night"),
+    specialSupplierPrice: z.number().min(0).default(0),
+    specialUnitCount: z.number().int().min(1).max(30).default(1),
+    weekdayCustomerPrice: z.number().min(0).default(0),
+    weekdayDays: z
+      .array(
+        z.enum([
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday",
+        ])
+      )
+      .default(["monday", "tuesday", "wednesday", "thursday", "friday"]),
+    weekdayPriceUnit: z.enum(["per_night", "per_hour"]).default("per_night"),
+    weekdaySupplierPrice: z.number().min(0).default(0),
+    weekdayUnitCount: z.number().int().min(1).max(30).default(1),
   }),
   roomCode: nonEmptyString,
   seo: z

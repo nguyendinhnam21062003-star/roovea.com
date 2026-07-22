@@ -1,0 +1,67 @@
+{
+  "name": "Villa 2 phòng ngủ gần biển An Bàng",
+  "roomCode": "",
+  "accommodationTypes": ["villa"],
+  "otherAccommodationType": "",
+  "description": "Villa riêng tư gần biển An Bàng, phù hợp gia đình nhỏ hoặc nhóm bạn. Không gian có phòng khách, bếp, sân hiên và khu nghỉ ngơi thoáng. Giá hiển thị là mức thấp nhất theo đêm đã bao gồm lợi nhuận Roovea.",
+  "areaM2": 95,
+  "capacity": {
+    "maxAdults": 4,
+    "maxChildren": 1,
+    "childAgeMax": 6,
+    "bedrooms": 2,
+    "bathrooms": 2,
+    "beds": 2
+  },
+  "supplier": {
+    "supplierCode": "",
+    "fullName": "Nguyễn Văn Test"
+  },
+  "pricing": {
+    "supplierPrice": 1800000,
+    "commissionType": "fixed",
+    "commissionValue": 400000,
+    "referencePrice": 2200000,
+    "priceUnit": "per_night",
+    "weekdaySupplierPrice": 1800000,
+    "weekdayCustomerPrice": 2200000,
+    "weekdayPriceUnit": "per_night",
+    "weekdayUnitCount": 1,
+    "weekdayDays": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "specialSupplierPrice": 5200000,
+    "specialCustomerPrice": 6200000,
+    "specialPriceUnit": "per_night",
+    "specialUnitCount": 2,
+    "priceNote": "Giá thu khách thấp nhất 2.200.000 VND/đêm từ thứ 2 đến thứ 6. Thứ 7 và Chủ nhật áp dụng 5.200.000 VND/2 đêm, tối thiểu 2 đêm. Lễ/tết cần xác nhận lại với nhà cung cấp trước khi báo khách."
+  },
+  "location": {
+    "provinceCity": "Quảng Nam",
+    "districtCity": "Hội An",
+    "addressDetail": "Gần biển An Bàng, Hội An, Quảng Nam",
+    "googleMapsUrl": "https://maps.google.com/?q=An+Bang+Beach+Hoi+An",
+    "nearbyTags": ["near_beach", "near_market"],
+    "distanceToCenter": "from_3_to_5km"
+  },
+  "policies": {
+    "checkInTime": "14:00",
+    "checkOutTime": "12:00",
+    "smoking": "not_allowed",
+    "pets": "conditional",
+    "cancellationType": "conditional",
+    "cancellationDetail": "Hủy phòng theo chính sách xác nhận tại thời điểm đặt.",
+    "depositRequired": true,
+    "depositDetail": "Cần đặt cọc 50% để giữ phòng.",
+    "minimumNights": 1,
+    "quietHours": "22:00 - 07:00",
+    "otherPolicy": "Sức chứa tiêu chuẩn 4 người lớn và 1 trẻ em. Vượt số người cần xác nhận phụ thu trước khi nhận phòng."
+  },
+  "amenities": ["wifi", "air_conditioner", "kitchen", "parking", "pool"],
+  "customAmenities": ["Sân hiên riêng", "Bếp đầy đủ dụng cụ", "Máy giặt"],
+  "media": {
+    "images": [],
+    "videoUrls": []
+  },
+  "internalNote": "Trẻ em áp dụng dưới 6 tuổi. Nếu có thêm người lớn hoặc trẻ em vượt sức chứa, cần hỏi nhà cung cấp về phụ thu trước khi chốt với khách. Giá lễ/tết chưa cố định.",
+  "internalPolicyUrl": "https://docs.google.com/document/d/test-room-policy",
+  "isFeatured": false
+}

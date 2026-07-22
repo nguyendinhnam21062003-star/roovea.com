@@ -15,12 +15,19 @@ const requiredEnv = [
   "ADMIN_PASSWORD_HASH",
   "ADMIN_SESSION_SECRET",
   "FIELD_ENCRYPTION_KEY",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+  "GOOGLE_REDIRECT_URI",
 ]
 
 const requiredTables = [
   "audit_logs",
   "contact_channels",
   "customer_inquiries",
+  "app_users",
+  "app_user_sessions",
+  "rental_listing_media",
+  "rental_listings",
   "room_media",
   "rooms",
   "suppliers",

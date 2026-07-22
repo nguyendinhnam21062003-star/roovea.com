@@ -94,7 +94,9 @@ import {
   getAccommodationType,
   getAccommodationTypeLabels,
   getBathroomCount,
-  getRoomDiscount,
+  getRoomDefaultPriceSuffix,
+  getRoomGuestBreakdown,
+  getRoomSpecialPriceText,
   type PublicRoom,
 } from "@/lib/rooms"
 import { cn } from "@/lib/utils"
@@ -112,7 +114,6 @@ type FilterUrlState = {
   priceRange: [number, number]
   selectedTypes: string[]
   selectedProvinces: string[]
-  selectedFeaturedAreas: string[]
 }
 
 const initialVisibleRoomCount = 10
@@ -191,22 +192,8 @@ const provinceOptions = [
   { label: "Thừa Thiên Huế", value: "Thừa Thiên Huế" },
 ]
 
-const featuredAreaOptions = [
-  { label: "Hạ Long", value: "Hạ Long" },
-  { label: "Vũng Tàu", value: "Vũng Tàu" },
-  { label: "Hội An", value: "Hội An" },
-  { label: "Huế", value: "Huế" },
-  { label: "Sơn Trà", value: "Sơn Trà" },
-  { label: "Đà Lạt", value: "Đà Lạt" },
-  { label: "Phú Quốc", value: "Phú Quốc" },
-  { label: "Quận 1", value: "Quận 1" },
-]
-
 const typeValues = new Set(typeOptions.map((option) => option.value))
 const provinceValues = new Set(provinceOptions.map((option) => option.value))
-const featuredAreaValues = new Set(
-  featuredAreaOptions.map((option) => option.value)
-)
 
 function getRoomScore(room: PublicRoom) {
   return room.featured ? "4.9" : "4.7"
@@ -317,10 +304,6 @@ function getFiltersFromSearchParams(
       getMultiParamValues(params, "province"),
       provinceValues
     ),
-    selectedFeaturedAreas: getUniqueKnownValues(
-      getMultiParamValues(params, "area"),
-      featuredAreaValues
-    ),
   }
 }
 
@@ -365,7 +348,6 @@ function writeFiltersToSearchParams(
 
   appendMultiParam(params, "type", filters.selectedTypes)
   appendMultiParam(params, "province", filters.selectedProvinces)
-  appendMultiParam(params, "area", filters.selectedFeaturedAreas)
 
   return params
 }
@@ -396,7 +378,7 @@ function getFilterHref(
   const filterQueryString = getFilterQueryString(filters, priceRangeBounds)
 
   return `${pathname}${queryString ? `?${queryString}` : ""}${
-    filterQueryString ? "#tim-phong" : ""
+    filterQueryString ? "#timphong" : ""
   }`
 }
 
@@ -430,9 +412,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
   const [selectedProvinces, setSelectedProvinces] = useState<string[]>(
     initialFilters.selectedProvinces
   )
-  const [selectedFeaturedAreas, setSelectedFeaturedAreas] = useState<string[]>(
-    initialFilters.selectedFeaturedAreas
-  )
   const [priceRange, setPriceRange] = useState<[number, number]>(
     initialFilters.priceRange
   )
@@ -455,17 +434,8 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
       priceRange,
       selectedTypes,
       selectedProvinces,
-      selectedFeaturedAreas,
     }),
-    [
-      guests,
-      priceRange,
-      query,
-      selectedFeaturedAreas,
-      selectedProvinces,
-      selectedTypes,
-      sort,
-    ]
+    [guests, priceRange, query, selectedProvinces, selectedTypes, sort]
   )
   const filterStateRef = useRef(filterState)
   const syncingFiltersFromUrlRef = useRef(false)
@@ -497,7 +467,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
     setHeroDestination(nextFilters.query)
     setSelectedTypes(nextFilters.selectedTypes)
     setSelectedProvinces(nextFilters.selectedProvinces)
-    setSelectedFeaturedAreas(nextFilters.selectedFeaturedAreas)
     setPriceRange(nextFilters.priceRange)
     setGuests(nextFilters.guests)
     setSort(nextFilters.sort)
@@ -576,9 +545,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
         const provinceMatched =
           selectedProvinces.length === 0 ||
           selectedProvinces.includes(room.locationLevel1)
-        const featuredAreaMatched =
-          selectedFeaturedAreas.length === 0 ||
-          selectedFeaturedAreas.includes(room.locationLevel2)
         const priceMatched =
           room.referencePrice >= priceRange[0] &&
           room.referencePrice <= priceRange[1]
@@ -588,7 +554,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
           queryMatched &&
           typeMatched &&
           provinceMatched &&
-          featuredAreaMatched &&
           priceMatched &&
           guestMatched
         )
@@ -611,16 +576,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
 
         return Number(second.featured) - Number(first.featured)
       })
-  }, [
-    guests,
-    priceRange,
-    query,
-    rooms,
-    selectedFeaturedAreas,
-    selectedProvinces,
-    selectedTypes,
-    sort,
-  ])
+  }, [guests, priceRange, query, rooms, selectedProvinces, selectedTypes, sort])
 
   const filterKey = useMemo(
     () =>
@@ -631,17 +587,8 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
         priceRange.join("-"),
         selectedTypes.join(","),
         selectedProvinces.join(","),
-        selectedFeaturedAreas.join(","),
       ].join("|"),
-    [
-      guests,
-      priceRange,
-      query,
-      selectedFeaturedAreas,
-      selectedProvinces,
-      selectedTypes,
-      sort,
-    ]
+    [guests, priceRange, query, selectedProvinces, selectedTypes, sort]
   )
   const visibleRoomCount =
     visibleRoomState.key === filterKey
@@ -659,10 +606,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
       label:
         provinceOptions.find((option) => option.value === value)?.label ??
         value,
-    })),
-    ...selectedFeaturedAreas.map((value) => ({
-      key: `area:${value}`,
-      label: value,
     })),
     priceRange[0] !== priceRangeBounds[0] ||
     priceRange[1] !== priceRangeBounds[1]
@@ -687,7 +630,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
     setHeroDestination("")
     setSelectedTypes([])
     setSelectedProvinces([])
-    setSelectedFeaturedAreas([])
     setPriceRange(priceRangeBounds)
     setGuests("1")
     setSort("popular")
@@ -708,12 +650,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
     if (key.startsWith("province:")) {
       setSelectedProvinces((current) =>
         current.filter((value) => value !== key.replace("province:", ""))
-      )
-    }
-
-    if (key.startsWith("area:")) {
-      setSelectedFeaturedAreas((current) =>
-        current.filter((value) => value !== key.replace("area:", ""))
       )
     }
 
@@ -741,7 +677,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
     event.preventDefault()
     setQuery(heroDestination.trim())
     document
-      .getElementById("tim-phong")
+      .getElementById("timphong")
       ?.scrollIntoView({ behavior: "smooth", block: "start" })
   }
 
@@ -924,7 +860,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
       </section>
 
       <section
-        id="tim-phong"
+        id="timphong"
         className="border-t bg-muted/30 px-4 py-12 sm:px-6 lg:px-8"
       >
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
@@ -953,9 +889,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
                   onGuestsChange={setGuests}
                   onPriceRangeChange={setPriceRange}
                   onShowMore={() => setFilterDrawerOpen(true)}
-                  onFeaturedAreaToggle={(value) =>
-                    toggleFilterValue(value, setSelectedFeaturedAreas)
-                  }
                   onProvinceToggle={(value) =>
                     toggleFilterValue(value, setSelectedProvinces)
                   }
@@ -964,7 +897,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
                   }
                   priceRange={priceRange}
                   priceRangeBounds={priceRangeBounds}
-                  selectedFeaturedAreas={selectedFeaturedAreas}
                   selectedProvinces={selectedProvinces}
                   selectedTypes={selectedTypes}
                 />
@@ -1145,9 +1077,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
               onClear={clearAllFilters}
               onGuestsChange={setGuests}
               onPriceRangeChange={setPriceRange}
-              onFeaturedAreaToggle={(value) =>
-                toggleFilterValue(value, setSelectedFeaturedAreas)
-              }
               onProvinceToggle={(value) =>
                 toggleFilterValue(value, setSelectedProvinces)
               }
@@ -1156,7 +1085,6 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
               }
               priceRange={priceRange}
               priceRangeBounds={priceRangeBounds}
-              selectedFeaturedAreas={selectedFeaturedAreas}
               selectedProvinces={selectedProvinces}
               selectedTypes={selectedTypes}
             />
@@ -1191,14 +1119,12 @@ function FilterPanel({
   guests,
   onClear,
   onGuestsChange,
-  onFeaturedAreaToggle,
   onPriceRangeChange,
   onProvinceToggle,
   onShowMore,
   onTypeToggle,
   priceRange,
   priceRangeBounds,
-  selectedFeaturedAreas,
   selectedProvinces,
   selectedTypes,
   showAllOptions = false,
@@ -1210,21 +1136,18 @@ function FilterPanel({
   guests: string
   onClear: () => void
   onGuestsChange: (value: string) => void
-  onFeaturedAreaToggle: (value: string) => void
   onPriceRangeChange: (value: [number, number]) => void
   onProvinceToggle: (value: string) => void
   onShowMore?: () => void
   onTypeToggle: (value: string) => void
   priceRange: [number, number]
   priceRangeBounds: [number, number]
-  selectedFeaturedAreas: string[]
   selectedProvinces: string[]
   selectedTypes: string[]
   showAllOptions?: boolean
   showClearFooter?: boolean
 }) {
   const [expandedGroups, setExpandedGroups] = useState({
-    areas: false,
     provinces: false,
     types: false,
   })
@@ -1238,7 +1161,6 @@ function FilterPanel({
     >
       <CardHeader className="shrink-0">
         <CardTitle>Bộ lọc</CardTitle>
-        <CardDescription>Tùy chọn tìm phòng nhanh</CardDescription>
         {onShowMore ? (
           <CardAction>
             <Button
@@ -1296,24 +1218,6 @@ function FilterPanel({
             options={provinceOptions}
             selectedValues={selectedProvinces}
             title="Khu vực theo tỉnh"
-          />
-          <FilterOptionGroup
-            defaultVisible={4}
-            expanded={showAllOptions || expandedGroups.areas}
-            hideExpandedToggle={showAllOptions}
-            id="featured-area-filter"
-            onExpandedChange={() =>
-              onShowMore
-                ? onShowMore()
-                : setExpandedGroups((current) => ({
-                    ...current,
-                    areas: !current.areas,
-                  }))
-            }
-            onToggle={onFeaturedAreaToggle}
-            options={featuredAreaOptions}
-            selectedValues={selectedFeaturedAreas}
-            title="Khu vực nổi bật"
           />
           <FieldSet>
             <FieldLegend>Mức giá</FieldLegend>
@@ -1454,7 +1358,7 @@ export function RoomCard({
     showTypePrefix && accommodationType
       ? `${accommodationType} | ${room.name}`
       : room.name
-  const discount = getRoomDiscount(room)
+  const specialPriceText = getRoomSpecialPriceText(room)
   const [copiedCode, setCopiedCode] = useState(false)
   const [localQuickViewOpen, setLocalQuickViewOpen] = useState(false)
   const handleQuickView = onQuickView ?? (() => setLocalQuickViewOpen(true))
@@ -1490,13 +1394,8 @@ export function RoomCard({
           </Link>
           <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-2">
             {room.featured ? <Badge>Nổi bật</Badge> : null}
-            {discount ? (
-              <>
-                <Badge variant="secondary">Giảm {discount.percent}%</Badge>
-                <Badge variant="secondary">
-                  Tiết kiệm {formatCurrency(discount.saving)}
-                </Badge>
-              </>
+            {specialPriceText ? (
+              <Badge variant="secondary">Ngày đặc biệt</Badge>
             ) : null}
           </div>
           <button
@@ -1533,7 +1432,10 @@ export function RoomCard({
             {room.address}
           </p>
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <InlineFact icon={UsersThreeIcon} label={`${room.guests} khách`} />
+            <InlineFact
+              icon={UsersThreeIcon}
+              label={getRoomGuestBreakdown(room)}
+            />
             <InlineFact icon={BedIcon} label={`${room.bedrooms} phòng ngủ`} />
             <InlineFact
               icon={BathtubIcon}
@@ -1543,13 +1445,18 @@ export function RoomCard({
         </CardContent>
         <CardFooter className="flex-wrap justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Giá tham khảo</span>
+            <span className="text-xs text-muted-foreground">
+              Giá bán ngày thường
+            </span>
             <span className="text-base font-semibold">
               {formatCurrency(room.referencePrice)}
+              {getRoomDefaultPriceSuffix(room)}
             </span>
-            <span className="text-xs text-muted-foreground line-through">
-              {formatCurrency(room.strikePrice)}
-            </span>
+            {specialPriceText ? (
+              <span className="text-xs text-muted-foreground">
+                Ngày đặc biệt: {specialPriceText}
+              </span>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2 max-sm:w-full">
             <Button
@@ -1721,11 +1628,14 @@ function RoomQuickView({
                     <div className="flex items-baseline gap-2">
                       <p className="text-xl font-semibold">
                         {formatCurrency(room.referencePrice)}
-                      </p>
-                      <p className="text-sm text-muted-foreground line-through">
-                        {formatCurrency(room.strikePrice)}
+                        {getRoomDefaultPriceSuffix(room)}
                       </p>
                     </div>
+                    {getRoomSpecialPriceText(room) ? (
+                      <p className="text-sm text-muted-foreground">
+                        Ngày đặc biệt: {getRoomSpecialPriceText(room)}
+                      </p>
+                    ) : null}
                   </div>
                   <p className="text-sm leading-6 text-muted-foreground">
                     {room.description}
@@ -1734,7 +1644,7 @@ function RoomQuickView({
                     <RoomFact icon={BedIcon} label={`${room.bedrooms} PN`} />
                     <RoomFact
                       icon={UsersThreeIcon}
-                      label={`${room.guests} khách`}
+                      label={getRoomGuestBreakdown(room)}
                     />
                     <RoomFact icon={HouseLineIcon} label={room.area} />
                   </div>
@@ -1816,7 +1726,7 @@ function RoomFact({
   return (
     <div className="flex min-w-0 items-center gap-1 bg-muted px-2 py-2">
       <Icon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="truncate">{label}</span>
+      <span className="leading-4">{label}</span>
     </div>
   )
 }
