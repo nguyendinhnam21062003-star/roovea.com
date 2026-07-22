@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
 
 import {
   getGoogleOAuthClient,
@@ -11,6 +11,7 @@ import {
   sanitizeAccountReturnPath,
 } from "@/lib/auth/google"
 import { createUserSession } from "@/lib/auth/user-session"
+import { redirectToLocalPath } from "@/lib/http/redirect"
 import { upsertGoogleUser } from "@/lib/services/app-users"
 
 const oauthCookieNames = [
@@ -20,9 +21,9 @@ const oauthCookieNames = [
   googleOAuthNextCookieName,
 ]
 
-function loginError(request: NextRequest, error: string) {
-  const response = NextResponse.redirect(
-    new URL(`/dangnhap?error=${encodeURIComponent(error)}`, request.url)
+function loginError(error: string) {
+  const response = redirectToLocalPath(
+    `/dangnhap?error=${encodeURIComponent(error)}`
   )
 
   oauthCookieNames.forEach((name) => response.cookies.delete(name))
@@ -34,19 +35,15 @@ export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code")
   const state = request.nextUrl.searchParams.get("state")
   const expectedState = request.cookies.get(googleOAuthStateCookieName)?.value
-  const codeVerifier = request.cookies.get(
-    googleOAuthVerifierCookieName
-  )?.value
-  const expectedNonce = request.cookies.get(
-    googleOAuthNonceCookieName
-  )?.value
+  const codeVerifier = request.cookies.get(googleOAuthVerifierCookieName)?.value
+  const expectedNonce = request.cookies.get(googleOAuthNonceCookieName)?.value
 
   if (error || !code || !codeVerifier || !expectedNonce) {
-    return loginError(request, error || "oauth_callback_invalid")
+    return loginError(error || "oauth_callback_invalid")
   }
 
   if (!safeCompareOAuthValue(expectedState, state)) {
-    return loginError(request, "oauth_state_invalid")
+    return loginError("oauth_state_invalid")
   }
 
   try {
@@ -59,7 +56,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (!tokens.id_token) {
-      return loginError(request, "oauth_identity_missing")
+      return loginError("oauth_identity_missing")
     }
 
     const ticket = await client.verifyIdToken({
@@ -74,7 +71,7 @@ export async function GET(request: NextRequest) {
       !payload.email_verified ||
       !safeCompareOAuthValue(expectedNonce, payload.nonce ?? null)
     ) {
-      return loginError(request, "oauth_identity_invalid")
+      return loginError("oauth_identity_invalid")
     }
 
     const user = await upsertGoogleUser({
@@ -85,7 +82,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (!user || user.status !== "active") {
-      return loginError(request, "account_suspended")
+      return loginError("account_suspended")
     }
 
     await createUserSession(user.id)
@@ -93,11 +90,11 @@ export async function GET(request: NextRequest) {
     const nextPath = sanitizeAccountReturnPath(
       request.cookies.get(googleOAuthNextCookieName)?.value
     )
-    const response = NextResponse.redirect(new URL(nextPath, request.url))
+    const response = redirectToLocalPath(nextPath)
     oauthCookieNames.forEach((name) => response.cookies.delete(name))
 
     return response
   } catch {
-    return loginError(request, "oauth_failed")
+    return loginError("oauth_failed")
   }
 }

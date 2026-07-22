@@ -5,9 +5,10 @@ import {
   adminSessionCookieName,
   verifyAdminSessionToken,
 } from "@/lib/auth/session-token"
+import { getPublicAppUrl } from "@/lib/http/redirect"
 
 function redirect(request: NextRequest, pathname: string) {
-  return NextResponse.redirect(new URL(pathname, request.url))
+  return NextResponse.redirect(getPublicAppUrl(pathname, request.url))
 }
 
 export async function proxy(request: NextRequest) {

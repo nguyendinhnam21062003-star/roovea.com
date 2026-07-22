@@ -13,12 +13,11 @@ import {
   isGoogleOAuthConfigured,
   sanitizeAccountReturnPath,
 } from "@/lib/auth/google"
+import { redirectToLocalPath } from "@/lib/http/redirect"
 
 export async function GET(request: NextRequest) {
   if (!isGoogleOAuthConfigured()) {
-    return NextResponse.redirect(
-      new URL("/dangnhap?error=oauth_not_configured", request.url)
-    )
+    return redirectToLocalPath("/dangnhap?error=oauth_not_configured")
   }
 
   const redirectUri = getGoogleRedirectUri(request.url)

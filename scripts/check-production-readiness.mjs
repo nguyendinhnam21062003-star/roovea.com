@@ -11,6 +11,7 @@ loadEnvConfig(process.cwd())
 
 const requiredEnv = [
   "DATABASE_URL",
+  "APP_URL",
   "ADMIN_EMAIL",
   "ADMIN_PASSWORD_HASH",
   "ADMIN_SESSION_SECRET",
@@ -44,6 +45,22 @@ for (const name of requiredEnv) {
 
   if (!value) {
     addIssue(`${name} is missing.`)
+  }
+}
+
+if (process.env.APP_URL) {
+  try {
+    const appUrl = new URL(process.env.APP_URL)
+
+    if (appUrl.protocol !== "https:") {
+      addIssue("APP_URL must use HTTPS in production.")
+    }
+
+    if (appUrl.pathname !== "/" || appUrl.search || appUrl.hash) {
+      addIssue("APP_URL must contain only the public origin without a path.")
+    }
+  } catch {
+    addIssue("APP_URL must be a valid absolute URL.")
   }
 }
 

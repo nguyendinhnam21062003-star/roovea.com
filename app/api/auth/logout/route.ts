@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server"
-
 import { clearUserSession } from "@/lib/auth/user-session"
+import { redirectToLocalPath } from "@/lib/http/redirect"
 
-export async function POST(request: Request) {
+export async function POST() {
   await clearUserSession()
 
-  return NextResponse.redirect(new URL("/", request.url), { status: 303 })
+  return redirectToLocalPath("/", 303)
 }
