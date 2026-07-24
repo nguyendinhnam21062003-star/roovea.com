@@ -2128,9 +2128,12 @@ function RentalQuickView({
                 </div>
               </div>
             </ScrollArea>
-            <SheetFooter className="sm:flex-row sm:justify-end">
-              <ContactActions roomCode={rental.code} />
-              <Button asChild>
+            <SheetFooter className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <ContactActions
+                className="w-full [&>button]:w-full"
+                roomCode={rental.code}
+              />
+              <Button asChild className="w-full">
                 <Link href={detailHref}>
                   Xem trang chi tiết
                   <ArrowRightIcon data-icon="inline-end" />

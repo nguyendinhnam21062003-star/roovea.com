@@ -2,7 +2,10 @@
 
 import Link from "next/link"
 import {
+  ArrowRightIcon,
   CheckCircleIcon,
+  HouseLineIcon,
+  IdentificationCardIcon,
   ListIcon,
   SignInIcon,
   SignOutIcon,
@@ -13,18 +16,29 @@ import { ContactActions } from "@/components/contact-actions"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
   SheetClose,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -56,23 +70,30 @@ export function SiteHeaderActions({ user }: { user: HeaderUser }) {
           <span className="flex items-center gap-1.5 font-medium text-foreground">
             <span className="truncate">{user.displayName}</span>
             {user.isVerified ? (
-              <CheckCircleIcon className="shrink-0 text-blue-600" weight="fill" />
+              <CheckCircleIcon
+                className="shrink-0 text-primary"
+                weight="fill"
+              />
             ) : null}
           </span>
           <span className="truncate">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/taikhoan/tindang">Quản lý tin đăng</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/taikhoan/hoso">Hồ sơ liên hệ</Link>
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <Link href="/taikhoan/tindang">Quản lý tin đăng</Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/taikhoan/hoso">Hồ sơ liên hệ</Link>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={logout}>
-          <SignOutIcon />
-          Đăng xuất
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onSelect={logout}>
+            <SignOutIcon />
+            Đăng xuất
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   ) : (
@@ -91,6 +112,12 @@ export function SiteHeaderActions({ user }: { user: HeaderUser }) {
         {accountMenu}
       </div>
 
+      <ContactActions
+        className="lg:hidden"
+        label="Tư vấn nhanh"
+        triggerClassName="h-7 px-2"
+      />
+
       <Sheet>
         <SheetTrigger asChild>
           <Button
@@ -103,62 +130,74 @@ export function SiteHeaderActions({ user }: { user: HeaderUser }) {
             <ListIcon />
           </Button>
         </SheetTrigger>
-        <SheetContent side="right">
+        <SheetContent side="right" className="w-[min(90vw,360px)]!">
           <SheetHeader>
             <SheetTitle>Menu Roovea</SheetTitle>
             <SheetDescription>
-              Tìm phòng và quản lý tài khoản của bạn.
+              Khám phá chỗ ở và quản lý tài khoản của bạn.
             </SheetDescription>
           </SheetHeader>
-          <nav className="flex flex-col gap-1 px-4">
-            {siteNavItems.map((item) => (
-              <SheetClose key={item.href} asChild>
-                <Button asChild variant="ghost" className="justify-start">
-                  <Link href={item.href}>{item.label}</Link>
-                </Button>
-              </SheetClose>
-            ))}
-          </nav>
-          <div className="mt-auto flex flex-col gap-3 border-t p-4">
+          <Separator />
+
+          <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
             {user ? (
-              <div className="flex flex-col gap-1 text-sm">
-                <div className="flex items-center gap-2 font-medium">
-                  <span className="truncate">{user.displayName}</span>
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle className="flex min-w-0 items-center gap-2">
+                    <UserCircleIcon className="size-5 shrink-0 text-primary" />
+                    <span className="truncate">{user.displayName}</span>
+                  </CardTitle>
+                  <CardDescription className="truncate">
+                    {user.email}
+                  </CardDescription>
                   {user.isVerified ? (
-                    <Badge variant="secondary" className="text-blue-600">
-                      <CheckCircleIcon weight="fill" />
-                      Đã xác minh
-                    </Badge>
+                    <CardAction>
+                      <Badge variant="secondary">
+                        <CheckCircleIcon weight="fill" />
+                        Đã xác minh
+                      </Badge>
+                    </CardAction>
                   ) : null}
-                </div>
-                <span className="truncate text-xs text-muted-foreground">
-                  {user.email}
-                </span>
-                <div className="mt-2 grid gap-1">
+                </CardHeader>
+                <CardContent className="grid gap-2">
                   <SheetClose asChild>
-                    <Button asChild variant="outline" className="justify-start">
-                      <Link href="/taikhoan/tindang">Quản lý tin đăng</Link>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full justify-start"
+                    >
+                      <Link href="/taikhoan/tindang">
+                        <HouseLineIcon data-icon="inline-start" />
+                        Quản lý tin đăng
+                      </Link>
                     </Button>
                   </SheetClose>
                   <SheetClose asChild>
-                    <Button asChild variant="outline" className="justify-start">
-                      <Link href="/taikhoan/hoso">Hồ sơ liên hệ</Link>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full justify-start"
+                    >
+                      <Link href="/taikhoan/hoso">
+                        <IdentificationCardIcon data-icon="inline-start" />
+                        Hồ sơ liên hệ
+                      </Link>
                     </Button>
                   </SheetClose>
                   <Button
                     type="button"
-                    variant="ghost"
-                    className="justify-start"
+                    variant="destructive"
+                    className="w-full justify-start"
                     onClick={logout}
                   >
                     <SignOutIcon data-icon="inline-start" />
                     Đăng xuất
                   </Button>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             ) : (
               <SheetClose asChild>
-                <Button asChild variant="outline">
+                <Button asChild>
                   <Link href="/dangnhap">
                     <SignInIcon data-icon="inline-start" />
                     Đăng nhập
@@ -166,8 +205,40 @@ export function SiteHeaderActions({ user }: { user: HeaderUser }) {
                 </Button>
               </SheetClose>
             )}
-            <ContactActions label="Tư vấn nhanh" />
+
+            <div className="order-first flex flex-col gap-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Khám phá Roovea
+              </p>
+              <nav className="grid gap-2">
+                {siteNavItems.map((item) => (
+                  <SheetClose key={item.href} asChild>
+                    <Button
+                      asChild
+                      variant="ghost"
+                      className="w-full justify-between"
+                    >
+                      <Link href={item.href}>
+                        {item.label}
+                        <ArrowRightIcon data-icon="inline-end" />
+                      </Link>
+                    </Button>
+                  </SheetClose>
+                ))}
+              </nav>
+            </div>
           </div>
+
+          <Separator />
+          <SheetFooter>
+            <p className="text-xs text-muted-foreground">
+              Bạn cần Roovea hỗ trợ chọn phòng?
+            </p>
+            <ContactActions
+              className="w-full [&>button]:w-full"
+              label="Tư vấn nhanh"
+            />
+          </SheetFooter>
         </SheetContent>
       </Sheet>
     </div>

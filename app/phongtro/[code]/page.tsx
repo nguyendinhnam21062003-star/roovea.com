@@ -41,6 +41,7 @@ import {
   getPublicRentalByCode,
   getPublicRentalListings,
 } from "@/lib/services/rentals"
+import { cn } from "@/lib/utils"
 
 type RentalPageProps = {
   params: Promise<{ code: string }>
@@ -158,8 +159,7 @@ export default async function RentalDetailPage({ params }: RentalPageProps) {
                 )}
                 <Separator />
                 <div className="flex flex-col gap-2 text-xs text-muted-foreground">
-                  <span>Điện: {rental.electricityPrice}</span>
-                  <span>Nước: {rental.waterPrice}</span>
+                 
                   {rental.otherCosts ? (
                     <span>Khác: {rental.otherCosts}</span>
                   ) : null}
@@ -283,30 +283,56 @@ export default async function RentalDetailPage({ params }: RentalPageProps) {
                   Chi phí và quy định
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col gap-5">
-                <div className="flex flex-wrap gap-2">
-                  <DetailBadge label="Điện" text={rental.electricityPrice} />
-                  <DetailBadge label="Nước" text={rental.waterPrice} />
-                  {rental.otherCosts ? (
+              <CardContent className="flex flex-col gap-4">
+                {rental.otherCosts ? (
+                  <div className="flex flex-wrap gap-2">
                     <DetailBadge
                       label="Chi phí khác"
                       text={rental.otherCosts}
                     />
-                  ) : null}
-                </div>
-                <div className="flex flex-col gap-3 text-sm">
-                  {rental.allowedRules.map((rule) => (
-                    <RuleItem key={rule} allowed text={rule} />
-                  ))}
-                  {rental.disallowedRules.map((rule) => (
-                    <RuleItem key={rule} text={rule} />
-                  ))}
-                  {!rental.allowedRules.length &&
-                  !rental.disallowedRules.length ? (
-                    <p className="text-muted-foreground">
-                      Trao đổi thêm với Roovea khi xem phòng.
-                    </p>
-                  ) : null}
+                  </div>
+                ) : null}
+                <div className="grid grid-cols-2 gap-3">
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CheckCircleIcon
+                          className="text-primary"
+                          weight="fill"
+                        />
+                        Được phép
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-2 text-sm">
+                      {rental.allowedRules.length ? (
+                        rental.allowedRules.map((rule) => (
+                          <RuleItem key={rule} allowed text={rule} />
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground">Chưa cập nhật.</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card size="sm">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <XCircleIcon
+                          className="text-destructive"
+                          weight="fill"
+                        />
+                        Không được phép
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-2 text-sm">
+                      {rental.disallowedRules.length ? (
+                        rental.disallowedRules.map((rule) => (
+                          <RuleItem key={rule} text={rule} />
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground">Chưa cập nhật.</p>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               </CardContent>
             </Card>
@@ -450,9 +476,10 @@ function RuleItem({
   return (
     <p className="flex items-start gap-2">
       <Icon
-        className={`mt-0.5 size-4 shrink-0 ${
-          allowed ? "text-primary" : "text-muted-foreground"
-        }`}
+        className={cn(
+          "mt-0.5 size-4 shrink-0",
+          allowed ? "text-primary" : "text-destructive"
+        )}
       />
       {text}
     </p>

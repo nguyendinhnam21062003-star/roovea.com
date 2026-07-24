@@ -1,4 +1,3 @@
-import Link from "next/link"
 import { redirect } from "next/navigation"
 import { GoogleLogoIcon, ShieldCheckIcon } from "@phosphor-icons/react/dist/ssr"
 
@@ -8,7 +7,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -94,11 +92,6 @@ export default async function LoginPage({
               luôn liên hệ qua Roovea.
             </p>
           </CardContent>
-          <CardFooter className="justify-center">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/admin/login">Đăng nhập dành cho admin</Link>
-            </Button>
-          </CardFooter>
         </Card>
       </main>
       <SiteFooter />

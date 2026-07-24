@@ -2194,11 +2194,14 @@ function RoomQuickView({
                 </div>
               </div>
             </ScrollArea>
-            <SheetFooter className="sm:flex-row sm:justify-end">
-              <ContactActions roomCode={room.code} />
-              <Button asChild>
+            <SheetFooter className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <ContactActions
+                className="w-full [&>button]:w-full"
+                roomCode={room.code}
+              />
+              <Button asChild className="w-full">
                 <Link href={`/phong/${room.slug}`}>
-                  Xem link chi tiết
+                  Xem trang chi tiết
                   <ArrowRightIcon data-icon="inline-end" />
                 </Link>
               </Button>
