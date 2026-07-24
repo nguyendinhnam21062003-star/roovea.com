@@ -1,0 +1,16 @@
+ALTER TABLE "listings"
+  ALTER COLUMN "accommodation_types" SET DEFAULT '[]'::jsonb,
+  ALTER COLUMN "supplier_price" SET DEFAULT 0,
+  ALTER COLUMN "commission_type" SET DEFAULT 'percentage',
+  ALTER COLUMN "commission_value" SET DEFAULT 0,
+  ALTER COLUMN "reference_price" SET DEFAULT 0,
+  ALTER COLUMN "weekday_days" SET DEFAULT '[]'::jsonb,
+  ALTER COLUMN "province_city" SET DEFAULT '',
+  ALTER COLUMN "nearby_tags" SET DEFAULT '[]'::jsonb,
+  ALTER COLUMN "distance_to_center" SET DEFAULT 'not_declared',
+  ALTER COLUMN "policies" SET DEFAULT '{}'::jsonb,
+  ALTER COLUMN "smoking" SET DEFAULT 'not_allowed',
+  ALTER COLUMN "pets" SET DEFAULT 'not_allowed',
+  ALTER COLUMN "cancellation_type" SET DEFAULT 'conditional',
+  ALTER COLUMN "amenities" SET DEFAULT '[]'::jsonb,
+  ALTER COLUMN "custom_amenities" SET DEFAULT '[]'::jsonb;

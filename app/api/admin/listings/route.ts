@@ -1,33 +1,32 @@
 import { NextResponse } from "next/server"
 
 import { apiErrorResponse } from "@/lib/api-error"
-import { requireUserApiSession } from "@/lib/auth/user-api"
+import { requireAdminApiSession } from "@/lib/auth/api"
 import {
-  listOwnerListings,
+  listAdminListings,
   saveUnifiedListing,
 } from "@/lib/services/listings"
 
 export async function GET() {
-  const auth = await requireUserApiSession()
-
+  const auth = await requireAdminApiSession()
   if (!auth.session) return auth.response
 
-  const listings = await listOwnerListings(auth.session.user.id)
-  return NextResponse.json({ listings })
+  try {
+    return NextResponse.json({ listings: await listAdminListings() })
+  } catch (error) {
+    return apiErrorResponse(error)
+  }
 }
 
 export async function POST(request: Request) {
-  const auth = await requireUserApiSession()
-
+  const auth = await requireAdminApiSession()
   if (!auth.session) return auth.response
 
   try {
     const listing = await saveUnifiedListing(await request.json(), {
-      actor: auth.session.user.email,
-      mode: "owner",
-      ownerUserId: auth.session.user.id,
+      mode: "admin",
+      actor: auth.session.email,
     })
-
     return NextResponse.json({ listing })
   } catch (error) {
     return apiErrorResponse(error)

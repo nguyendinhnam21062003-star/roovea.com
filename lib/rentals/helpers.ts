@@ -17,6 +17,7 @@ export function buildEmptyRentalListing(): RentalListing {
     areaM2: 0,
     maxOccupants: 1,
     city: "TP. Hồ Chí Minh",
+    newProvince: "Thành phố Hồ Chí Minh",
     newWard: "",
     legacyWard: "",
     legacyDistrict: "",

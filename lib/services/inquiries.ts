@@ -103,7 +103,9 @@ async function resolveInquiryRoom(input: PublicInquiryInput) {
     const matched = await db
       .select()
       .from(rooms)
-      .where(eq(rooms.id, input.roomId))
+      .where(
+        and(eq(rooms.stayType, "short_stay"), eq(rooms.id, input.roomId))
+      )
       .limit(1)
 
     return matched[0]?.id ?? null
@@ -119,7 +121,7 @@ async function resolveInquiryRoom(input: PublicInquiryInput) {
   const matched = await db
     .select()
     .from(rooms)
-    .where(eq(rooms.code, code))
+    .where(and(eq(rooms.stayType, "short_stay"), eq(rooms.code, code)))
     .limit(1)
 
   return matched[0]?.id ?? null

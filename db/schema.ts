@@ -84,6 +84,7 @@ export const rentalTypeEnum = pgEnum("rental_type", [
   "shared_room",
   "dormitory",
   "whole_house",
+  "apartment",
   "other",
 ])
 
@@ -206,22 +207,58 @@ export const suppliers = pgTable(
   ]
 )
 
-export const rooms = pgTable(
-  "rooms",
+export const listings = pgTable(
+  "listings",
   {
     id: text("id").primaryKey(),
-    code: varchar("code", { length: 32 }).notNull(),
+    code: varchar("code", { length: 32 })
+      .notNull()
+      .default(
+        sql`('PT' || lpad(nextval('rental_listing_code_seq')::text, 6, '0'))`
+      ),
     name: text("name").notNull(),
-    slug: text("slug").notNull(),
+    slug: text("slug")
+      .notNull()
+      .default(
+        sql`('tin-' || md5(random()::text || clock_timestamp()::text))`
+      ),
+    stayType: varchar("stay_type", { length: 20 })
+      .$type<"long_stay" | "short_stay">()
+      .notNull()
+      .default("short_stay"),
+    source: rentalListingSourceEnum("source")
+      .notNull()
+      .default("self_service"),
+    ownerUserId: text("owner_user_id").references(() => appUsers.id),
     status: roomStatusEnum("status").notNull().default("draft"),
+    publicationStatus: rentalPublicationStatusEnum("publication_status")
+      .notNull()
+      .default("draft"),
+    availabilityStatus: rentalAvailabilityStatusEnum("availability_status")
+      .notNull()
+      .default("available"),
     isFeatured: boolean("is_featured").notNull().default(false),
     displayPriority: integer("display_priority").notNull().default(0),
     accommodationTypes: jsonb("accommodation_types")
       .$type<AccommodationType[]>()
-      .notNull(),
+      .notNull()
+      .default([]),
     otherAccommodationType: text("other_accommodation_type"),
+    rentalType: rentalTypeEnum("rental_type")
+      .notNull()
+      .default("other"),
+    otherRentalType: text("other_rental_type"),
     description: text("description").notNull(),
     areaM2: integer("area_m2"),
+    ownerLivesOnSite: boolean("owner_lives_on_site"),
+    minimumLeaseMonths: integer("minimum_lease_months"),
+    monthlyPrice: numeric("monthly_price", {
+      precision: 14,
+      scale: 0,
+    })
+      .notNull()
+      .default("0"),
+    maxOccupants: integer("max_occupants").notNull().default(1),
     maxGuests: integer("max_guests").notNull().default(1),
     maxAdults: integer("max_adults").notNull().default(1),
     maxChildren: integer("max_children").notNull().default(0),
@@ -233,7 +270,9 @@ export const rooms = pgTable(
     supplierPrice: numeric("supplier_price", {
       precision: 14,
       scale: 0,
-    }).notNull(),
+    })
+      .notNull()
+      .default("0"),
     weekdaySupplierPrice: numeric("weekday_supplier_price", {
       precision: 14,
       scale: 0,
@@ -246,15 +285,21 @@ export const rooms = pgTable(
     })
       .notNull()
       .default("0"),
-    commissionType: commissionTypeEnum("commission_type").notNull(),
+    commissionType: commissionTypeEnum("commission_type")
+      .notNull()
+      .default("percentage"),
     commissionValue: numeric("commission_value", {
       precision: 14,
       scale: 2,
-    }).notNull(),
+    })
+      .notNull()
+      .default("0"),
     referencePrice: numeric("reference_price", {
       precision: 14,
       scale: 0,
-    }).notNull(),
+    })
+      .notNull()
+      .default("0"),
     weekdayCustomerPrice: numeric("weekday_customer_price", {
       precision: 14,
       scale: 0,
@@ -276,30 +321,82 @@ export const rooms = pgTable(
       .default("per_night"),
     weekdayUnitCount: integer("weekday_unit_count").notNull().default(1),
     specialUnitCount: integer("special_unit_count").notNull().default(1),
-    weekdayDays: jsonb("weekday_days").$type<Weekday[]>().notNull(),
+    weekdayDays: jsonb("weekday_days")
+      .$type<Weekday[]>()
+      .notNull()
+      .default([]),
     priceNote: text("price_note"),
-    provinceCity: text("province_city").notNull(),
+    provinceCity: text("province_city").notNull().default(""),
     districtCity: text("district_city"),
+    city: text("city").notNull().default(""),
+    newProvinceCode: integer("new_province_code"),
+    newProvinceName: text("new_province_name"),
+    newWardCode: integer("new_ward_code"),
+    newWardName: text("new_ward_name"),
+    legacyProvinceCode: integer("legacy_province_code"),
+    legacyProvinceName: text("legacy_province_name"),
+    legacyDistrictCode: integer("legacy_district_code"),
+    legacyDistrictName: text("legacy_district_name"),
+    legacyWardCode: integer("legacy_ward_code"),
+    legacyWardName: text("legacy_ward_name"),
+    newWard: text("new_ward").notNull().default(""),
+    legacyWard: text("legacy_ward").notNull().default(""),
+    legacyDistrict: text("legacy_district").notNull().default(""),
     addressDetail: text("address_detail").notNull(),
     googleMapsUrl: text("google_maps_url"),
-    nearbyTags: jsonb("nearby_tags").$type<string[]>().notNull(),
+    nearbyTags: jsonb("nearby_tags")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    nearbyPlaces: jsonb("nearby_places")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     distanceToCenter: varchar("distance_to_center", { length: 32 })
       .$type<DistanceToCenter>()
-      .notNull(),
-    policies: jsonb("policies").$type<RoomPolicies>().notNull(),
+      .notNull()
+      .default("not_declared"),
+    policies: jsonb("policies")
+      .$type<RoomPolicies>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    policyDescription: text("policy_description"),
     smoking: varchar("smoking", { length: 32 })
       .$type<SmokingPolicy>()
-      .notNull(),
-    pets: varchar("pets", { length: 32 }).$type<PetsPolicy>().notNull(),
+      .notNull()
+      .default("not_allowed"),
+    pets: varchar("pets", { length: 32 })
+      .$type<PetsPolicy>()
+      .notNull()
+      .default("not_allowed"),
     cancellationType: varchar("cancellation_type", {
       length: 32,
     })
       .$type<CancellationPolicy>()
-      .notNull(),
-    amenities: jsonb("amenities").$type<string[]>().notNull(),
-    customAmenities: jsonb("custom_amenities").$type<string[]>().notNull(),
+      .notNull()
+      .default("conditional"),
+    electricityPrice: text("electricity_price").notNull().default(""),
+    waterPrice: text("water_price").notNull().default(""),
+    otherCosts: text("other_costs"),
+    amenities: jsonb("amenities")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    customAmenities: jsonb("custom_amenities")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    allowedRules: jsonb("allowed_rules")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    disallowedRules: jsonb("disallowed_rules")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     internalNote: text("internal_note"),
     internalPolicyUrl: text("internal_policy_url"),
+    hiddenReason: text("hidden_reason"),
     metaTitle: text("meta_title"),
     metaDescription: text("meta_description"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -313,14 +410,18 @@ export const rooms = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
-    uniqueIndex("rooms_code_unique").on(table.code),
-    uniqueIndex("rooms_slug_unique").on(table.slug),
-    index("rooms_status_idx").on(table.status),
-    index("rooms_supplier_id_idx").on(table.supplierId),
+    uniqueIndex("listings_code_unique").on(table.code),
+    uniqueIndex("listings_slug_unique").on(table.slug),
+    index("listings_stay_type_idx").on(table.stayType),
+    index("listings_status_idx").on(table.status),
+    index("listings_publication_status_idx").on(table.publicationStatus),
+    index("listings_availability_status_idx").on(table.availabilityStatus),
+    index("listings_owner_user_id_idx").on(table.ownerUserId),
+    index("listings_supplier_id_idx").on(table.supplierId),
   ]
 )
 
-export const rentalListings = pgTable(
+export const legacyRentalListings = pgTable(
   "rental_listings",
   {
     id: text("id").primaryKey(),
@@ -400,13 +501,13 @@ export const rentalListings = pgTable(
   ]
 )
 
-export const rentalListingMedia = pgTable(
+export const legacyRentalListingMedia = pgTable(
   "rental_listing_media",
   {
     id: text("id").primaryKey(),
     rentalListingId: text("rental_listing_id")
       .notNull()
-      .references(() => rentalListings.id, { onDelete: "cascade" }),
+      .references(() => legacyRentalListings.id, { onDelete: "cascade" }),
     type: mediaTypeEnum("type").notNull(),
     url: text("url").notNull(),
     provider: varchar("provider", { length: 32 }).notNull().default("local"),
@@ -426,13 +527,13 @@ export const rentalListingMedia = pgTable(
   ]
 )
 
-export const roomMedia = pgTable(
-  "room_media",
+export const listingMedia = pgTable(
+  "listing_media",
   {
     id: text("id").primaryKey(),
-    roomId: text("room_id")
+    listingId: text("listing_id")
       .notNull()
-      .references(() => rooms.id, { onDelete: "cascade" }),
+      .references(() => listings.id, { onDelete: "cascade" }),
     type: mediaTypeEnum("type").notNull(),
     url: text("url").notNull(),
     provider: varchar("provider", { length: 32 }).notNull().default("local"),
@@ -444,10 +545,18 @@ export const roomMedia = pgTable(
       .defaultNow(),
   },
   (table) => [
-    index("room_media_room_id_idx").on(table.roomId),
-    index("room_media_thumbnail_idx").on(table.roomId, table.isThumbnail),
+    index("listing_media_listing_id_idx").on(table.listingId),
+    index("listing_media_thumbnail_idx").on(
+      table.listingId,
+      table.isThumbnail
+    ),
   ]
 )
+
+export const rooms = listings
+export const rentalListings = listings
+export const roomMedia = listingMedia
+export const rentalListingMedia = listingMedia
 
 export const customerInquiries = pgTable(
   "customer_inquiries",

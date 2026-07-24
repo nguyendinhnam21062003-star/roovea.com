@@ -115,6 +115,8 @@ async function main() {
 
       await db.insert(rooms).values({
         id: room.id,
+        stayType: "short_stay",
+        source: "admin",
         code: room.roomCode,
         name: room.name,
         slug: room.seo.slug,
@@ -172,7 +174,7 @@ async function main() {
 
       const imageRows = room.media.images.map((image, index) => ({
         id: image.id,
-        roomId: room.id,
+        listingId: room.id,
         type: "image" as const,
         url: image.url,
         provider: image.url.startsWith("/uploads/") ? "local" : "external",
@@ -182,7 +184,7 @@ async function main() {
       }))
       const videoRows = room.media.videoUrls.map((url, index) => ({
         id: makeId("room-video"),
-        roomId: room.id,
+        listingId: room.id,
         type: "video" as const,
         url,
         provider: "external_embed",
@@ -201,6 +203,7 @@ async function main() {
 
       await db.insert(rentalListings).values({
         id: rental.id,
+        stayType: "long_stay",
         code: rental.code,
         source: isSelfService ? "self_service" : "admin",
         ownerUserId: isSelfService ? seededOwnerId : null,
@@ -244,7 +247,7 @@ async function main() {
         await db.insert(rentalListingMedia).values(
           rental.media.images.map((image, imageIndex) => ({
             id: image.id,
-            rentalListingId: rental.id,
+            listingId: rental.id,
             type: "image" as const,
             url: image.url,
             provider: "external",

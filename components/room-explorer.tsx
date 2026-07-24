@@ -88,6 +88,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Slider } from "@/components/ui/slider"
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group"
 import { formatCurrency } from "@/lib/format"
 import { getPrimaryRoomMedia, getVideoEmbedUrl } from "@/lib/media"
 import {
@@ -106,6 +110,7 @@ type RoomExplorerProps = {
 }
 
 type SortOption = "popular" | "price-asc" | "price-desc" | "newest"
+type LocationSystem = "legacy" | "new"
 
 type FilterUrlState = {
   query: string
@@ -113,7 +118,12 @@ type FilterUrlState = {
   sort: SortOption
   priceRange: [number, number]
   selectedTypes: string[]
-  selectedProvinces: string[]
+  locationSystem: LocationSystem
+  legacyProvince: string
+  newProvince: string
+  selectedDistricts: string[]
+  legacyWard: string
+  newWard: string
 }
 
 const initialVisibleRoomCount = 10
@@ -134,8 +144,12 @@ const filterParamNames = [
   "minPrice",
   "maxPrice",
   "type",
+  "locationSystem",
   "province",
-  "area",
+  "newProvince",
+  "district",
+  "ward",
+  "newWard",
 ] as const
 
 async function writeClipboardText(text: string) {
@@ -180,20 +194,92 @@ const typeOptions = [
   { label: "Khác", value: "Khác" },
 ]
 
-const provinceOptions = [
-  { label: "TP.HCM", value: "TP. Hồ Chí Minh" },
-  { label: "Hà Nội", value: "Hà Nội" },
-  { label: "Đà Nẵng", value: "Đà Nẵng" },
-  { label: "Quảng Nam", value: "Quảng Nam" },
-  { label: "Lâm Đồng", value: "Lâm Đồng" },
-  { label: "Kiên Giang", value: "Kiên Giang" },
-  { label: "Quảng Ninh", value: "Quảng Ninh" },
-  { label: "Bà Rịa - Vũng Tàu", value: "Bà Rịa - Vũng Tàu" },
-  { label: "Thừa Thiên Huế", value: "Thừa Thiên Huế" },
-]
-
 const typeValues = new Set(typeOptions.map((option) => option.value))
-const provinceValues = new Set(provinceOptions.map((option) => option.value))
+
+function uniqueSorted(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean))).sort((first, second) =>
+    first.localeCompare(second, "vi")
+  )
+}
+
+function normalizeLocationName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+}
+
+function provinceKey(value: string) {
+  return normalizeLocationName(value)
+    .replace(/^(thanh pho|tp\.?|tinh)\s+/, "")
+    .trim()
+}
+
+function uniqueProvinceNames(values: string[]) {
+  const namesByKey = new Map<string, string>()
+
+  for (const value of values.filter(Boolean)) {
+    const key = provinceKey(value)
+    const current = namesByKey.get(key)
+    const score = value.startsWith("Thành phố")
+      ? 3
+      : value.startsWith("Tỉnh")
+        ? 2
+        : value.startsWith("TP")
+          ? 1
+          : 0
+    const currentScore = current?.startsWith("Thành phố")
+      ? 3
+      : current?.startsWith("Tỉnh")
+        ? 2
+        : current?.startsWith("TP")
+          ? 1
+          : 0
+
+    if (!current || score > currentScore) {
+      namesByKey.set(key, value)
+    }
+  }
+
+  return uniqueSorted(Array.from(namesByKey.values()))
+}
+
+function preferredProvince(values: string[]) {
+  return (
+    values.find((value) =>
+      normalizeLocationName(value).includes("ho chi minh")
+    ) ??
+    values[0] ??
+    "all"
+  )
+}
+
+function getKnownParamWithDefault(
+  params: URLSearchParams,
+  name: string,
+  options: string[],
+  fallback: string
+) {
+  const value = params.get(name)?.trim()
+
+  if (!value) {
+    return fallback
+  }
+
+  return value === "all" || options.includes(value) ? value : fallback
+}
+
+function getKnownParam(
+  params: URLSearchParams,
+  name: string,
+  options: string[]
+) {
+  const value = params.get(name)?.trim() ?? ""
+
+  return options.includes(value) ? value : "all"
+}
 
 function getRoomScore(room: PublicRoom) {
   return room.featured ? "4.9" : "4.7"
@@ -270,7 +356,14 @@ function getBoundedNumber(
 function getFiltersFromSearchParams(
   params: URLSearchParams,
   priceRangeBounds: [number, number],
-  guestOptions: string[]
+  guestOptions: string[],
+  legacyProvinces: string[],
+  newProvinces: string[],
+  districts: string[],
+  legacyWards: string[],
+  newWards: string[],
+  defaultLegacyProvince: string,
+  defaultNewProvince: string
 ): FilterUrlState {
   const minPrice = getBoundedNumber(
     params.get("minPrice"),
@@ -288,6 +381,8 @@ function getFiltersFromSearchParams(
       : [Math.min(minPrice, maxPrice), Math.max(minPrice, maxPrice)]
   const guestsParam = params.get("guests") ?? "1"
   const sortParam = params.get("sort")
+  const locationSystem =
+    params.get("locationSystem") === "new" ? "new" : "legacy"
 
   return {
     query: params.get("q")?.trim() ?? "",
@@ -300,10 +395,25 @@ function getFiltersFromSearchParams(
       getMultiParamValues(params, "type"),
       typeValues
     ),
-    selectedProvinces: getUniqueKnownValues(
-      getMultiParamValues(params, "province"),
-      provinceValues
+    locationSystem,
+    legacyProvince: getKnownParamWithDefault(
+      params,
+      "province",
+      legacyProvinces,
+      defaultLegacyProvince
     ),
+    newProvince: getKnownParamWithDefault(
+      params,
+      "newProvince",
+      newProvinces,
+      defaultNewProvince
+    ),
+    selectedDistricts: getUniqueKnownValues(
+      getMultiParamValues(params, "district"),
+      new Set(districts)
+    ),
+    legacyWard: getKnownParam(params, "ward", legacyWards),
+    newWard: getKnownParam(params, "newWard", newWards),
   }
 }
 
@@ -347,7 +457,22 @@ function writeFiltersToSearchParams(
   }
 
   appendMultiParam(params, "type", filters.selectedTypes)
-  appendMultiParam(params, "province", filters.selectedProvinces)
+
+  if (filters.locationSystem === "new") {
+    params.set("locationSystem", "new")
+    params.set("newProvince", filters.newProvince)
+
+    if (filters.newWard !== "all") {
+      params.set("newWard", filters.newWard)
+    }
+  } else {
+    params.set("province", filters.legacyProvince)
+    appendMultiParam(params, "district", filters.selectedDistricts)
+
+    if (filters.legacyWard !== "all") {
+      params.set("ward", filters.legacyWard)
+    }
+  }
 
   return params
 }
@@ -399,19 +524,57 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
   const searchParams = useSearchParams()
   const guestOptions = useMemo(() => getGuestOptions(rooms), [rooms])
   const priceRangeBounds = useMemo(() => getPriceRangeBounds(rooms), [rooms])
+  const legacyProvinces = useMemo(
+    () => uniqueProvinceNames(rooms.map((room) => room.legacyProvince)),
+    [rooms]
+  )
+  const newProvinces = useMemo(
+    () => uniqueProvinceNames(rooms.map((room) => room.newProvince)),
+    [rooms]
+  )
+  const allDistricts = useMemo(
+    () => uniqueSorted(rooms.map((room) => room.legacyDistrict)),
+    [rooms]
+  )
+  const allLegacyWards = useMemo(
+    () => uniqueSorted(rooms.map((room) => room.legacyWard)),
+    [rooms]
+  )
+  const allNewWards = useMemo(
+    () => uniqueSorted(rooms.map((room) => room.newWard)),
+    [rooms]
+  )
+  const defaultLegacyProvince = preferredProvince(legacyProvinces)
+  const defaultNewProvince = preferredProvince(newProvinces)
   const initialFilters = getFiltersFromSearchParams(
     new URLSearchParams(searchParams.toString()),
     priceRangeBounds,
-    guestOptions
+    guestOptions,
+    legacyProvinces,
+    newProvinces,
+    allDistricts,
+    allLegacyWards,
+    allNewWards,
+    defaultLegacyProvince,
+    defaultNewProvince
   )
   const [query, setQuery] = useState(initialFilters.query)
   const [heroDestination, setHeroDestination] = useState(initialFilters.query)
   const [selectedTypes, setSelectedTypes] = useState<string[]>(
     initialFilters.selectedTypes
   )
-  const [selectedProvinces, setSelectedProvinces] = useState<string[]>(
-    initialFilters.selectedProvinces
+  const [locationSystem, setLocationSystem] = useState<LocationSystem>(
+    initialFilters.locationSystem
   )
+  const [legacyProvince, setLegacyProvince] = useState(
+    initialFilters.legacyProvince
+  )
+  const [newProvince, setNewProvince] = useState(initialFilters.newProvince)
+  const [selectedDistricts, setSelectedDistricts] = useState<string[]>(
+    initialFilters.selectedDistricts
+  )
+  const [legacyWard, setLegacyWard] = useState(initialFilters.legacyWard)
+  const [newWard, setNewWard] = useState(initialFilters.newWard)
   const [priceRange, setPriceRange] = useState<[number, number]>(
     initialFilters.priceRange
   )
@@ -433,13 +596,72 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
       sort,
       priceRange,
       selectedTypes,
-      selectedProvinces,
+      locationSystem,
+      legacyProvince,
+      newProvince,
+      selectedDistricts,
+      legacyWard,
+      newWard,
     }),
-    [guests, priceRange, query, selectedProvinces, selectedTypes, sort]
+    [
+      guests,
+      legacyProvince,
+      legacyWard,
+      locationSystem,
+      newProvince,
+      newWard,
+      priceRange,
+      query,
+      selectedDistricts,
+      selectedTypes,
+      sort,
+    ]
   )
   const filterStateRef = useRef(filterState)
   const syncingFiltersFromUrlRef = useRef(false)
   const serializedSearchParams = searchParams.toString()
+  const districts = useMemo(
+    () =>
+      uniqueSorted(
+        rooms
+          .filter(
+            (room) =>
+              legacyProvince === "all" ||
+              provinceKey(room.legacyProvince) === provinceKey(legacyProvince)
+          )
+          .map((room) => room.legacyDistrict)
+      ),
+    [legacyProvince, rooms]
+  )
+  const legacyWards = useMemo(
+    () =>
+      uniqueSorted(
+        rooms
+          .filter(
+            (room) =>
+              (legacyProvince === "all" ||
+                provinceKey(room.legacyProvince) ===
+                  provinceKey(legacyProvince)) &&
+              (selectedDistricts.length === 0 ||
+                selectedDistricts.includes(room.legacyDistrict))
+          )
+          .map((room) => room.legacyWard)
+      ),
+    [legacyProvince, rooms, selectedDistricts]
+  )
+  const newWards = useMemo(
+    () =>
+      uniqueSorted(
+        rooms
+          .filter(
+            (room) =>
+              newProvince === "all" ||
+              provinceKey(room.newProvince) === provinceKey(newProvince)
+          )
+          .map((room) => room.newWard)
+      ),
+    [newProvince, rooms]
+  )
 
   useEffect(() => {
     filterStateRef.current = filterState
@@ -449,7 +671,14 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
     const nextFilters = getFiltersFromSearchParams(
       new URLSearchParams(serializedSearchParams),
       priceRangeBounds,
-      guestOptions
+      guestOptions,
+      legacyProvinces,
+      newProvinces,
+      allDistricts,
+      allLegacyWards,
+      allNewWards,
+      defaultLegacyProvince,
+      defaultNewProvince
     )
 
     if (
@@ -466,11 +695,27 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
     setQuery(nextFilters.query)
     setHeroDestination(nextFilters.query)
     setSelectedTypes(nextFilters.selectedTypes)
-    setSelectedProvinces(nextFilters.selectedProvinces)
+    setLocationSystem(nextFilters.locationSystem)
+    setLegacyProvince(nextFilters.legacyProvince)
+    setNewProvince(nextFilters.newProvince)
+    setSelectedDistricts(nextFilters.selectedDistricts)
+    setLegacyWard(nextFilters.legacyWard)
+    setNewWard(nextFilters.newWard)
     setPriceRange(nextFilters.priceRange)
     setGuests(nextFilters.guests)
     setSort(nextFilters.sort)
-  }, [guestOptions, priceRangeBounds, serializedSearchParams])
+  }, [
+    allDistricts,
+    allLegacyWards,
+    allNewWards,
+    defaultLegacyProvince,
+    defaultNewProvince,
+    guestOptions,
+    legacyProvinces,
+    newProvinces,
+    priceRangeBounds,
+    serializedSearchParams,
+  ])
 
   useEffect(() => {
     if (syncingFiltersFromUrlRef.current) {
@@ -481,7 +726,14 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
     const currentUrlFilters = getFiltersFromSearchParams(
       new URLSearchParams(serializedSearchParams),
       priceRangeBounds,
-      guestOptions
+      guestOptions,
+      legacyProvinces,
+      newProvinces,
+      allDistricts,
+      allLegacyWards,
+      allNewWards,
+      defaultLegacyProvince,
+      defaultNewProvince
     )
 
     if (
@@ -500,8 +752,15 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
       { scroll: false }
     )
   }, [
+    allDistricts,
+    allLegacyWards,
+    allNewWards,
+    defaultLegacyProvince,
+    defaultNewProvince,
     filterState,
     guestOptions,
+    legacyProvinces,
+    newProvinces,
     pathname,
     priceRangeBounds,
     router,
@@ -526,6 +785,11 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
           room.name,
           room.locationLevel1,
           room.locationLevel2,
+          room.legacyProvince,
+          room.legacyDistrict,
+          room.legacyWard,
+          room.newProvince,
+          room.newWard,
           room.address,
           room.description,
           ...room.highlights,
@@ -542,9 +806,17 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
           selectedTypes.some((type) =>
             getAccommodationTypeLabels(room).includes(type)
           )
-        const provinceMatched =
-          selectedProvinces.length === 0 ||
-          selectedProvinces.includes(room.locationLevel1)
+        const locationMatched =
+          locationSystem === "legacy"
+            ? (legacyProvince === "all" ||
+                provinceKey(room.legacyProvince) ===
+                  provinceKey(legacyProvince)) &&
+              (selectedDistricts.length === 0 ||
+                selectedDistricts.includes(room.legacyDistrict)) &&
+              (legacyWard === "all" || room.legacyWard === legacyWard)
+            : (newProvince === "all" ||
+                provinceKey(room.newProvince) === provinceKey(newProvince)) &&
+              (newWard === "all" || room.newWard === newWard)
         const priceMatched =
           room.referencePrice >= priceRange[0] &&
           room.referencePrice <= priceRange[1]
@@ -553,7 +825,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
         return (
           queryMatched &&
           typeMatched &&
-          provinceMatched &&
+          locationMatched &&
           priceMatched &&
           guestMatched
         )
@@ -576,7 +848,20 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
 
         return Number(second.featured) - Number(first.featured)
       })
-  }, [guests, priceRange, query, rooms, selectedProvinces, selectedTypes, sort])
+  }, [
+    guests,
+    legacyProvince,
+    legacyWard,
+    locationSystem,
+    newProvince,
+    newWard,
+    priceRange,
+    query,
+    rooms,
+    selectedDistricts,
+    selectedTypes,
+    sort,
+  ])
 
   const filterKey = useMemo(
     () =>
@@ -586,9 +871,26 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
         sort,
         priceRange.join("-"),
         selectedTypes.join(","),
-        selectedProvinces.join(","),
+        locationSystem,
+        legacyProvince,
+        selectedDistricts.join(","),
+        legacyWard,
+        newProvince,
+        newWard,
       ].join("|"),
-    [guests, priceRange, query, selectedProvinces, selectedTypes, sort]
+    [
+      guests,
+      legacyProvince,
+      legacyWard,
+      locationSystem,
+      newProvince,
+      newWard,
+      priceRange,
+      query,
+      selectedDistricts,
+      selectedTypes,
+      sort,
+    ]
   )
   const visibleRoomCount =
     visibleRoomState.key === filterKey
@@ -597,15 +899,30 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
 
   const activeFilters = [
     query ? { key: "query", label: query } : null,
+    locationSystem === "new"
+      ? { key: "locationSystem", label: "Địa giới mới" }
+      : null,
+    locationSystem === "legacy" && legacyProvince !== "all"
+      ? { key: "legacyProvince", label: legacyProvince }
+      : null,
+    ...(locationSystem === "legacy"
+      ? selectedDistricts.map((district) => ({
+          key: `district:${district}`,
+          label: district,
+        }))
+      : []),
+    locationSystem === "legacy" && legacyWard !== "all"
+      ? { key: "legacyWard", label: legacyWard }
+      : null,
+    locationSystem === "new" && newProvince !== "all"
+      ? { key: "newProvince", label: newProvince }
+      : null,
+    locationSystem === "new" && newWard !== "all"
+      ? { key: "newWard", label: newWard }
+      : null,
     ...selectedTypes.map((value) => ({
       key: `type:${value}`,
       label: value,
-    })),
-    ...selectedProvinces.map((value) => ({
-      key: `province:${value}`,
-      label:
-        provinceOptions.find((option) => option.value === value)?.label ??
-        value,
     })),
     priceRange[0] !== priceRangeBounds[0] ||
     priceRange[1] !== priceRangeBounds[1]
@@ -629,7 +946,12 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
     setQuery("")
     setHeroDestination("")
     setSelectedTypes([])
-    setSelectedProvinces([])
+    setLocationSystem("legacy")
+    setLegacyProvince(defaultLegacyProvince)
+    setNewProvince(defaultNewProvince)
+    setSelectedDistricts([])
+    setLegacyWard("all")
+    setNewWard("all")
     setPriceRange(priceRangeBounds)
     setGuests("1")
     setSort("popular")
@@ -647,10 +969,35 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
       )
     }
 
-    if (key.startsWith("province:")) {
-      setSelectedProvinces((current) =>
-        current.filter((value) => value !== key.replace("province:", ""))
+    if (key === "locationSystem") {
+      setLocationSystem("legacy")
+      setNewWard("all")
+    }
+
+    if (key === "legacyProvince") {
+      setLegacyProvince("all")
+      setSelectedDistricts([])
+      setLegacyWard("all")
+    }
+
+    if (key.startsWith("district:")) {
+      setSelectedDistricts((current) =>
+        current.filter((value) => value !== key.replace("district:", ""))
       )
+      setLegacyWard("all")
+    }
+
+    if (key === "legacyWard") {
+      setLegacyWard("all")
+    }
+
+    if (key === "newProvince") {
+      setNewProvince("all")
+      setNewWard("all")
+    }
+
+    if (key === "newWard") {
+      setNewWard("all")
     }
 
     if (key === "price") {
@@ -815,8 +1162,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
                 Chỗ ở được quan tâm nhiều
               </h2>
               <p className="text-sm text-muted-foreground">
-                Dạng slider ngang giống Roovia để lướt nhanh các lựa chọn đáng
-                chú ý.
+                Lướt nhanh những chỗ ở nổi bật được nhiều khách quan tâm.
               </p>
             </div>
           </div>
@@ -873,8 +1219,7 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
                 Chọn phòng phù hợp với khách
               </h2>
               <p className="text-sm text-muted-foreground">
-                Bố cục listing lấy nhịp từ Roovia: filter sidebar, danh sách
-                chính và panel hỗ trợ bên phải.
+                Lọc theo khu vực, loại hình, mức giá và số khách phù hợp.
               </p>
             </div>
           </div>
@@ -883,28 +1228,50 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
             <aside className="hidden lg:block">
               <div className="sticky top-20">
                 <FilterPanel
+                  districts={districts}
                   guestOptions={guestOptions}
                   guests={guests}
+                  legacyProvince={legacyProvince}
+                  legacyProvinces={legacyProvinces}
+                  legacyWard={legacyWard}
+                  legacyWards={legacyWards}
+                  locationSystem={locationSystem}
+                  newProvince={newProvince}
+                  newProvinces={newProvinces}
+                  newWard={newWard}
+                  newWards={newWards}
                   onClear={clearAllFilters}
+                  onDistrictToggle={(value) =>
+                    toggleFilterValue(value, setSelectedDistricts)
+                  }
                   onGuestsChange={setGuests}
+                  onLegacyProvinceChange={(value) => {
+                    setLegacyProvince(value)
+                    setSelectedDistricts([])
+                    setLegacyWard("all")
+                  }}
+                  onLegacyWardChange={setLegacyWard}
+                  onLocationSystemChange={setLocationSystem}
+                  onNewProvinceChange={(value) => {
+                    setNewProvince(value)
+                    setNewWard("all")
+                  }}
+                  onNewWardChange={setNewWard}
                   onPriceRangeChange={setPriceRange}
                   onShowMore={() => setFilterDrawerOpen(true)}
-                  onProvinceToggle={(value) =>
-                    toggleFilterValue(value, setSelectedProvinces)
-                  }
                   onTypeToggle={(value) =>
                     toggleFilterValue(value, setSelectedTypes)
                   }
                   priceRange={priceRange}
                   priceRangeBounds={priceRangeBounds}
-                  selectedProvinces={selectedProvinces}
+                  selectedDistricts={selectedDistricts}
                   selectedTypes={selectedTypes}
                 />
               </div>
             </aside>
 
             <div className="min-w-0">
-              <Card className="sticky top-28 z-20 mb-4 bg-card/95 shadow-sm backdrop-blur lg:top-16">
+              <Card className="sticky top-16 z-20 mb-4 bg-card/95 shadow-sm backdrop-blur lg:top-20">
                 <CardContent className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                   <InputGroup>
                     <InputGroupInput
@@ -1070,22 +1437,45 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
             <FilterPanel
               className="h-full max-h-none min-h-0"
               contentViewportClassName="max-h-none min-h-0 flex-1"
+              idPrefix="homestay-filter-sheet"
+              districts={districts}
               guestOptions={guestOptions}
               guests={guests}
+              legacyProvince={legacyProvince}
+              legacyProvinces={legacyProvinces}
+              legacyWard={legacyWard}
+              legacyWards={legacyWards}
+              locationSystem={locationSystem}
+              newProvince={newProvince}
+              newProvinces={newProvinces}
+              newWard={newWard}
+              newWards={newWards}
               showClearFooter={false}
               showAllOptions
               onClear={clearAllFilters}
-              onGuestsChange={setGuests}
-              onPriceRangeChange={setPriceRange}
-              onProvinceToggle={(value) =>
-                toggleFilterValue(value, setSelectedProvinces)
+              onDistrictToggle={(value) =>
+                toggleFilterValue(value, setSelectedDistricts)
               }
+              onGuestsChange={setGuests}
+              onLegacyProvinceChange={(value) => {
+                setLegacyProvince(value)
+                setSelectedDistricts([])
+                setLegacyWard("all")
+              }}
+              onLegacyWardChange={setLegacyWard}
+              onLocationSystemChange={setLocationSystem}
+              onNewProvinceChange={(value) => {
+                setNewProvince(value)
+                setNewWard("all")
+              }}
+              onNewWardChange={setNewWard}
+              onPriceRangeChange={setPriceRange}
               onTypeToggle={(value) =>
                 toggleFilterValue(value, setSelectedTypes)
               }
               priceRange={priceRange}
               priceRangeBounds={priceRangeBounds}
-              selectedProvinces={selectedProvinces}
+              selectedDistricts={selectedDistricts}
               selectedTypes={selectedTypes}
             />
           </div>
@@ -1115,40 +1505,71 @@ export function RoomExplorer({ rooms }: RoomExplorerProps) {
 function FilterPanel({
   className,
   contentViewportClassName,
+  idPrefix = "homestay-filter",
+  districts,
   guestOptions,
   guests,
+  legacyProvince,
+  legacyProvinces,
+  legacyWard,
+  legacyWards,
+  locationSystem,
+  newProvince,
+  newProvinces,
+  newWard,
+  newWards,
   onClear,
+  onDistrictToggle,
   onGuestsChange,
+  onLegacyProvinceChange,
+  onLegacyWardChange,
+  onLocationSystemChange,
+  onNewProvinceChange,
+  onNewWardChange,
   onPriceRangeChange,
-  onProvinceToggle,
   onShowMore,
   onTypeToggle,
   priceRange,
   priceRangeBounds,
-  selectedProvinces,
+  selectedDistricts,
   selectedTypes,
   showAllOptions = false,
   showClearFooter = true,
 }: {
   className?: string
   contentViewportClassName?: string
+  idPrefix?: string
+  districts: string[]
   guestOptions: string[]
   guests: string
+  legacyProvince: string
+  legacyProvinces: string[]
+  legacyWard: string
+  legacyWards: string[]
+  locationSystem: LocationSystem
+  newProvince: string
+  newProvinces: string[]
+  newWard: string
+  newWards: string[]
   onClear: () => void
+  onDistrictToggle: (value: string) => void
   onGuestsChange: (value: string) => void
+  onLegacyProvinceChange: (value: string) => void
+  onLegacyWardChange: (value: string) => void
+  onLocationSystemChange: (value: LocationSystem) => void
+  onNewProvinceChange: (value: string) => void
+  onNewWardChange: (value: string) => void
   onPriceRangeChange: (value: [number, number]) => void
-  onProvinceToggle: (value: string) => void
   onShowMore?: () => void
   onTypeToggle: (value: string) => void
   priceRange: [number, number]
   priceRangeBounds: [number, number]
-  selectedProvinces: string[]
+  selectedDistricts: string[]
   selectedTypes: string[]
   showAllOptions?: boolean
   showClearFooter?: boolean
 }) {
   const [expandedGroups, setExpandedGroups] = useState({
-    provinces: false,
     types: false,
   })
 
@@ -1183,11 +1604,97 @@ function FilterPanel({
         )}
       >
         <CardContent className="flex flex-col gap-5 pb-4">
+          <FieldSet>
+            <FieldLegend className={showAllOptions ? undefined : "sr-only"}>
+              Địa điểm
+            </FieldLegend>
+            <ToggleGroup
+              type="single"
+              value={locationSystem}
+              onValueChange={(value) => {
+                if (value === "legacy" || value === "new") {
+                  onLocationSystemChange(value)
+                }
+              }}
+              variant="outline"
+              spacing={0}
+              className="grid w-full grid-cols-2 pt-2"
+              aria-label="Chọn hệ thống địa giới"
+            >
+              <ToggleGroupItem value="legacy">Địa giới cũ</ToggleGroupItem>
+              <ToggleGroupItem value="new">Địa giới mới</ToggleGroupItem>
+            </ToggleGroup>
+          </FieldSet>
+
+          {locationSystem === "legacy" ? (
+            <>
+              <FilterSelect
+                id={`${idPrefix}-legacy-province`}
+                label="Tỉnh/Thành phố cũ"
+                value={legacyProvince}
+                options={legacyProvinces.map((value) => ({
+                  value,
+                  label: value,
+                }))}
+                onChange={onLegacyProvinceChange}
+              />
+              <FilterOptionGroup
+                defaultVisible={3}
+                expanded={showAllOptions}
+                hideExpandedToggle={showAllOptions}
+                id={`${idPrefix}-district`}
+                onExpandedChange={() => onShowMore?.()}
+                onToggle={onDistrictToggle}
+                options={districts.map((value) => ({
+                  value,
+                  label: value,
+                }))}
+                selectedValues={selectedDistricts}
+                title="Quận/huyện cũ"
+              />
+              {showAllOptions ? (
+                <FilterSelect
+                  id={`${idPrefix}-legacy-ward`}
+                  label="Phường/xã cũ"
+                  value={legacyWard}
+                  options={legacyWards.map((value) => ({
+                    value,
+                    label: value,
+                  }))}
+                  onChange={onLegacyWardChange}
+                />
+              ) : null}
+            </>
+          ) : (
+            <FieldGroup>
+              <FilterSelect
+                id={`${idPrefix}-new-province`}
+                label="Tỉnh/Thành phố mới"
+                value={newProvince}
+                options={newProvinces.map((value) => ({
+                  value,
+                  label: value,
+                }))}
+                onChange={onNewProvinceChange}
+              />
+              <FilterSelect
+                id={`${idPrefix}-new-ward`}
+                label="Phường/xã mới"
+                value={newWard}
+                options={newWards.map((value) => ({
+                  value,
+                  label: value,
+                }))}
+                onChange={onNewWardChange}
+              />
+            </FieldGroup>
+          )}
+
           <FilterOptionGroup
-            defaultVisible={5}
+            defaultVisible={3}
             expanded={showAllOptions || expandedGroups.types}
             hideExpandedToggle={showAllOptions}
-            id="type-filter"
+            id={`${idPrefix}-type`}
             onExpandedChange={() =>
               onShowMore
                 ? onShowMore()
@@ -1200,24 +1707,6 @@ function FilterPanel({
             options={typeOptions}
             selectedValues={selectedTypes}
             title="Loại hình"
-          />
-          <FilterOptionGroup
-            defaultVisible={3}
-            expanded={showAllOptions || expandedGroups.provinces}
-            hideExpandedToggle={showAllOptions}
-            id="province-filter"
-            onExpandedChange={() =>
-              onShowMore
-                ? onShowMore()
-                : setExpandedGroups((current) => ({
-                    ...current,
-                    provinces: !current.provinces,
-                  }))
-            }
-            onToggle={onProvinceToggle}
-            options={provinceOptions}
-            selectedValues={selectedProvinces}
-            title="Khu vực theo tỉnh"
           />
           <FieldSet>
             <FieldLegend>Mức giá</FieldLegend>
@@ -1240,25 +1729,29 @@ function FilterPanel({
               </div>
             </div>
           </FieldSet>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="guest-filter">Số khách tối thiểu</FieldLabel>
-              <Select value={guests} onValueChange={onGuestsChange}>
-                <SelectTrigger id="guest-filter" className="w-full">
-                  <SelectValue placeholder="Số khách" />
-                </SelectTrigger>
-                <SelectContent position="popper" className="max-h-72">
-                  <SelectGroup>
-                    {guestOptions.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value} khách
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-          </FieldGroup>
+          {showAllOptions ? (
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor={`${idPrefix}-guests`}>
+                  Số khách tối thiểu
+                </FieldLabel>
+                <Select value={guests} onValueChange={onGuestsChange}>
+                  <SelectTrigger id={`${idPrefix}-guests`} className="w-full">
+                    <SelectValue placeholder="Số khách" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="max-h-72">
+                    <SelectGroup>
+                      {guestOptions.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value} khách
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </FieldGroup>
+          ) : null}
         </CardContent>
       </ScrollArea>
       {showClearFooter ? (
@@ -1340,6 +1833,41 @@ function FilterOptionGroup({
         ) : null}
       </FieldGroup>
     </FieldSet>
+  )
+}
+
+function FilterSelect({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
+}) {
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue placeholder={label} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="all">Tất cả</SelectItem>
+            {options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </Field>
   )
 }
 

@@ -47,6 +47,50 @@ function getVimeoVideoId(url: URL) {
   return null
 }
 
+function getTikTokVideoId(url: URL) {
+  const host = url.hostname.replace(/^www\./, "")
+
+  if (host !== "tiktok.com" && !host.endsWith(".tiktok.com")) {
+    return null
+  }
+
+  const segments = url.pathname.split("/").filter(Boolean)
+  const videoSegmentIndex = segments.findIndex(
+    (segment) => segment === "video"
+  )
+  const pathVideoId =
+    videoSegmentIndex >= 0 ? segments[videoSegmentIndex + 1] : null
+
+  if (pathVideoId && /^\d+$/.test(pathVideoId)) {
+    return pathVideoId
+  }
+
+  if (
+    segments[0] === "player" &&
+    segments[1] === "v1" &&
+    segments[2] &&
+    /^\d+$/.test(segments[2])
+  ) {
+    return segments[2]
+  }
+
+  if (
+    segments[0] === "embed" &&
+    segments[1] === "v2" &&
+    segments[2] &&
+    /^\d+$/.test(segments[2])
+  ) {
+    return segments[2]
+  }
+
+  const queryVideoId =
+    url.searchParams.get("item_id") ??
+    url.searchParams.get("video_id") ??
+    url.searchParams.get("share_item_id")
+
+  return queryVideoId && /^\d+$/.test(queryVideoId) ? queryVideoId : null
+}
+
 export function getVideoEmbedUrl(src: string): string | null {
   try {
     const url = new URL(src)
@@ -75,7 +119,12 @@ export function getVideoEmbedUrl(src: string): string | null {
     }
 
     const vimeoId = getVimeoVideoId(url)
-    return vimeoId ? `https://player.vimeo.com/video/${vimeoId}` : null
+    if (vimeoId) {
+      return `https://player.vimeo.com/video/${vimeoId}`
+    }
+
+    const tikTokId = getTikTokVideoId(url)
+    return tikTokId ? `https://www.tiktok.com/player/v1/${tikTokId}` : null
   } catch {
     return null
   }

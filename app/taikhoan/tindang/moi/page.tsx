@@ -1,4 +1,4 @@
-import { RentalListingForm } from "@/components/rentals/rental-listing-form"
+import { UnifiedListingForm } from "@/components/listings/unified-listing-form"
 import { requireUserSession } from "@/lib/auth/user-session"
 
 export default async function NewRentalPage() {
@@ -10,7 +10,7 @@ export default async function NewRentalPage() {
         <p className="text-sm font-medium text-primary">Tin phòng trọ</p>
         <h1 className="font-heading text-3xl font-semibold">Đăng tin mới</h1>
       </div>
-      <RentalListingForm mode="owner" />
+      <UnifiedListingForm actorMode="owner" />
     </div>
   )
 }

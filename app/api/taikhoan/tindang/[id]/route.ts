@@ -3,10 +3,10 @@ import { NextResponse } from "next/server"
 import { apiErrorResponse } from "@/lib/api-error"
 import { requireUserApiSession } from "@/lib/auth/user-api"
 import {
-  archiveOwnerRental,
-  getOwnerRental,
-  saveRentalListing,
-} from "@/lib/services/rentals"
+  archiveOwnerListing,
+  getOwnerListing,
+  saveUnifiedListing,
+} from "@/lib/services/listings"
 
 export async function GET(
   _request: Request,
@@ -17,10 +17,10 @@ export async function GET(
   if (!auth.session) return auth.response
 
   const { id } = await params
-  const rental = await getOwnerRental(auth.session.user.id, id)
+  const listing = await getOwnerListing(auth.session.user.id, id)
 
-  return rental
-    ? NextResponse.json({ rental })
+  return listing
+    ? NextResponse.json({ listing })
     : NextResponse.json({ error: "Không tìm thấy tin đăng." }, { status: 404 })
 }
 
@@ -34,18 +34,17 @@ export async function PATCH(
 
   try {
     const { id } = await params
-    const rental = await saveRentalListing(
+    const listing = await saveUnifiedListing(
       { ...(await request.json()), id },
       {
         actor: auth.session.user.email,
         mode: "owner",
-        ownerPhone: auth.session.user.phone,
         ownerUserId: auth.session.user.id,
       }
     )
 
-    return rental
-      ? NextResponse.json({ rental })
+    return listing
+      ? NextResponse.json({ listing })
       : NextResponse.json(
           { error: "Bạn không có quyền sửa tin này." },
           { status: 403 }
@@ -64,7 +63,7 @@ export async function DELETE(
   if (!auth.session) return auth.response
 
   const { id } = await params
-  const archived = await archiveOwnerRental(auth.session.user.id, id)
+  const archived = await archiveOwnerListing(auth.session.user.id, id)
 
   return archived
     ? NextResponse.json({ ok: true })

@@ -5,6 +5,7 @@ export type RentalType =
   | "shared_room"
   | "dormitory"
   | "whole_house"
+  | "apartment"
   | "other"
 
 export type RentalPublicationStatus =
@@ -49,6 +50,7 @@ export type RentalListing = {
   areaM2: number
   maxOccupants: number
   city: string
+  newProvince: string
   newWard: string
   legacyWard: string
   legacyDistrict: string

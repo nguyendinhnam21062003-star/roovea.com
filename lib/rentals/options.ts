@@ -5,18 +5,28 @@ import type {
 } from "@/lib/rentals/types"
 
 export const rentalTypeLabels: Record<RentalType, string> = {
+  apartment: "Chung cư",
   boarding_room: "Phòng trọ",
-  mini_apartment: "Căn hộ mini",
-  room_in_house: "Phòng trong nhà/chung cư",
+  mini_apartment: "Chung cư mini",
+  room_in_house: "Phòng trong nhà",
   shared_room: "Ở ghép",
   dormitory: "Ký túc xá",
   whole_house: "Nhà nguyên căn",
   other: "Khác",
 }
 
-export const rentalTypeOptions = Object.entries(rentalTypeLabels).map(
-  ([value, label]) => ({ value: value as RentalType, label })
-)
+export const rentalTypeOptions: Array<{
+  value: RentalType
+  label: string
+}> = [
+  { value: "apartment", label: rentalTypeLabels.apartment },
+  { value: "mini_apartment", label: rentalTypeLabels.mini_apartment },
+  { value: "boarding_room", label: rentalTypeLabels.boarding_room },
+  { value: "dormitory", label: rentalTypeLabels.dormitory },
+  { value: "whole_house", label: rentalTypeLabels.whole_house },
+  { value: "room_in_house", label: rentalTypeLabels.room_in_house },
+  { value: "other", label: rentalTypeLabels.other },
+]
 
 export const rentalPublicationStatusLabels: Record<
   RentalPublicationStatus,

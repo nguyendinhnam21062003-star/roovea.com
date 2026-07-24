@@ -28,6 +28,11 @@ export type PublicRoom = {
   description: string
   locationLevel1: string
   locationLevel2: string
+  legacyProvince: string
+  legacyDistrict: string
+  legacyWard: string
+  newProvince: string
+  newWard: string
   address: string
   googleMapUrl: string
   updatedAt: string

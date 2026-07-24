@@ -73,10 +73,10 @@ export function ProfileForm({ profile }: { profile: RentalOwnerProfile }) {
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {!draft.phone ? (
         <Alert>
-          <AlertTitle>Hoàn thành contact riêng</AlertTitle>
+          <AlertTitle>Hoàn thành thông tin liên hệ</AlertTitle>
           <AlertDescription>
-            Số điện thoại chỉ hiển thị với bạn và admin. Người thuê luôn liên hệ
-            Roovea.
+            Số điện thoại chỉ hiển thị với bạn và đội ngũ hỗ trợ. Người thuê
+            luôn liên hệ Roovea.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -86,7 +86,8 @@ export function ProfileForm({ profile }: { profile: RentalOwnerProfile }) {
             <div className="flex flex-col gap-1.5">
               <CardTitle>Hồ sơ chủ nhà</CardTitle>
               <CardDescription>
-                Contact này không xuất hiện trên trang public.
+                Thông tin này chỉ được Roovea sử dụng để hỗ trợ tài khoản của
+                bạn.
               </CardDescription>
             </div>
             {draft.isVerified ? <Badge>Đã xác minh</Badge> : null}

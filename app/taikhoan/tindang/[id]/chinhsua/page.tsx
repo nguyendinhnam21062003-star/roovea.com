@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation"
 
-import { RentalListingForm } from "@/components/rentals/rental-listing-form"
+import { UnifiedListingForm } from "@/components/listings/unified-listing-form"
 import { requireUserSession } from "@/lib/auth/user-session"
-import { getOwnerRental } from "@/lib/services/rentals"
+import { getOwnerListing } from "@/lib/services/listings"
 
 export default async function EditRentalPage({
   params,
@@ -11,17 +11,17 @@ export default async function EditRentalPage({
 }) {
   const session = await requireUserSession()
   const { id } = await params
-  const rental = await getOwnerRental(session.user.id, id)
+  const listing = await getOwnerListing(session.user.id, id)
 
-  if (!rental) notFound()
+  if (!listing) notFound()
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-primary">{rental.code}</p>
+        <p className="text-sm font-medium text-primary">{listing.code}</p>
         <h1 className="font-heading text-3xl font-semibold">Chỉnh sửa tin</h1>
       </div>
-      <RentalListingForm initialRental={rental} mode="owner" />
+      <UnifiedListingForm initialListing={listing} actorMode="owner" />
     </div>
   )
 }

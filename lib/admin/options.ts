@@ -24,6 +24,11 @@ export const supplierStatusLabels: Record<SupplierStatus, string> = {
 }
 
 export const accommodationTypeLabels: Record<AccommodationType, string> = {
+  mini_apartment: "Chung cư mini",
+  boarding_room: "Phòng trọ",
+  dormitory: "Ký túc xá",
+  room_in_house: "Phòng trong nhà",
+  shared_room: "Ở ghép",
   guesthouse: "Nhà nghỉ",
   hotel: "Khách sạn",
   apartment: "Chung cư",

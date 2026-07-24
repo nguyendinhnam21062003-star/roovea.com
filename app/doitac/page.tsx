@@ -97,8 +97,8 @@ export default function PartnerPage() {
             Bạn đang vận hành homestay hoặc cơ sở lưu trú?
           </h2>
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Mảng lưu trú du lịch hiện được Roovea quản lý qua hệ thống đối tác
-            nội bộ. Hãy gửi thông tin để đội ngũ trao đổi quy trình phù hợp.
+            Hãy gửi thông tin về cơ sở lưu trú để đội ngũ Roovea trao đổi quy
+            trình hợp tác phù hợp.
           </p>
           <ContactActions label="Liên hệ Roovea" />
         </div>

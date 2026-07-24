@@ -13,6 +13,11 @@ export type AccommodationType =
   | "resort"
   | "homestay"
   | "studio"
+  | "mini_apartment"
+  | "boarding_room"
+  | "dormitory"
+  | "room_in_house"
+  | "shared_room"
   | "other"
 
 export type CommissionType = "percentage" | "fixed"

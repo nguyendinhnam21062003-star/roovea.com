@@ -69,6 +69,11 @@ function mapDemoPublicRoom(room: Room): PublicRoom {
     description: room.description,
     locationLevel1: room.location.provinceCity,
     locationLevel2: room.location.districtCity || room.location.provinceCity,
+    legacyProvince: room.location.provinceCity,
+    legacyDistrict: room.location.districtCity,
+    legacyWard: "",
+    newProvince: room.location.provinceCity,
+    newWard: "",
     address: room.location.addressDetail,
     googleMapUrl: room.location.googleMapsUrl,
     updatedAt: room.updatedAt,
@@ -164,8 +169,21 @@ function mapPublicRoom(row: RoomRow, mediaRows: MediaRow[]): PublicRoom {
     weekdayDays: pricing.weekdayDays,
     media: [...imageMedia, ...fallbackMedia, ...videoMedia],
     description: row.description,
-    locationLevel1: row.provinceCity,
-    locationLevel2: row.districtCity || row.provinceCity,
+    locationLevel1:
+      row.legacyProvinceName ?? row.city ?? row.provinceCity,
+    locationLevel2:
+      row.legacyDistrictName ??
+      row.legacyDistrict ??
+      row.districtCity ??
+      row.legacyProvinceName ??
+      row.provinceCity,
+    legacyProvince:
+      row.legacyProvinceName ?? row.city ?? row.provinceCity,
+    legacyDistrict:
+      row.legacyDistrictName ?? row.legacyDistrict ?? row.districtCity ?? "",
+    legacyWard: row.legacyWardName ?? row.legacyWard,
+    newProvince: row.newProvinceName ?? row.provinceCity,
+    newWard: row.newWardName ?? row.newWard,
     address: row.addressDetail,
     googleMapUrl: row.googleMapsUrl ?? "",
     updatedAt: updatedIso(row.updatedAt),
@@ -192,7 +210,13 @@ export async function getPublicRooms() {
       db
         .select()
         .from(rooms)
-        .where(and(eq(rooms.status, "published"), isNull(rooms.deletedAt)))
+        .where(
+          and(
+            eq(rooms.stayType, "short_stay"),
+            eq(rooms.status, "published"),
+            isNull(rooms.deletedAt)
+          )
+        )
         .orderBy(asc(rooms.displayPriority), asc(rooms.createdAt)),
       db.select().from(roomMedia).orderBy(asc(roomMedia.sortOrder)),
     ])
@@ -204,7 +228,7 @@ export async function getPublicRooms() {
     return roomRows.map((room) =>
       mapPublicRoom(
         room,
-        mediaRows.filter((item) => item.roomId === room.id)
+        mediaRows.filter((item) => item.listingId === room.id)
       )
     )
   } catch {
@@ -217,7 +241,9 @@ export async function getPublicRoomBySlug(slug: string) {
     const rows = await db
       .select()
       .from(rooms)
-      .where(eq(rooms.slug, slug))
+      .where(
+        and(eq(rooms.stayType, "short_stay"), eq(rooms.slug, slug))
+      )
       .limit(1)
     const room = rows[0]
 
@@ -228,7 +254,7 @@ export async function getPublicRoomBySlug(slug: string) {
     const mediaRows = await db
       .select()
       .from(roomMedia)
-      .where(eq(roomMedia.roomId, room.id))
+      .where(eq(roomMedia.listingId, room.id))
       .orderBy(asc(roomMedia.sortOrder))
 
     return mapPublicRoom(room, mediaRows)
@@ -251,7 +277,9 @@ export async function getPublicRoomByCode(code: string) {
     const rows = await db
       .select()
       .from(rooms)
-      .where(eq(rooms.code, normalized))
+      .where(
+        and(eq(rooms.stayType, "short_stay"), eq(rooms.code, normalized))
+      )
       .limit(1)
     const room = rows[0]
 
@@ -262,7 +290,7 @@ export async function getPublicRoomByCode(code: string) {
     const mediaRows = await db
       .select()
       .from(roomMedia)
-      .where(eq(roomMedia.roomId, room.id))
+      .where(eq(roomMedia.listingId, room.id))
 
     return mapPublicRoom(room, mediaRows)
   } catch {

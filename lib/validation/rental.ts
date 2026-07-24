@@ -49,6 +49,7 @@ export const rentalListingSchema = z.object({
     "shared_room",
     "dormitory",
     "whole_house",
+    "apartment",
     "other",
   ]),
   otherRentalType: z.string().trim().max(120).optional().default(""),

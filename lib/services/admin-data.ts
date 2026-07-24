@@ -192,7 +192,9 @@ export async function listAdminRooms() {
     db
       .select()
       .from(rooms)
-      .where(isNull(rooms.deletedAt))
+      .where(
+        and(eq(rooms.stayType, "short_stay"), isNull(rooms.deletedAt))
+      )
       .orderBy(desc(rooms.createdAt)),
     db.select().from(roomMedia),
   ])
@@ -200,7 +202,7 @@ export async function listAdminRooms() {
   return roomRows.map((room) =>
     roomToAdmin(
       room,
-      mediaRows.filter((item) => item.roomId === room.id)
+      mediaRows.filter((item) => item.listingId === room.id)
     )
   )
 }
@@ -261,11 +263,11 @@ export function getDemoAdminBootstrapData() {
 }
 
 async function replaceRoomMedia(room: Room) {
-  await db.delete(roomMedia).where(eq(roomMedia.roomId, room.id))
+  await db.delete(roomMedia).where(eq(roomMedia.listingId, room.id))
 
   const imageRows = room.media.images.map((image, index) => ({
     id: image.id,
-    roomId: room.id,
+    listingId: room.id,
     type: "image" as const,
     url: image.url,
     provider: image.url.startsWith("/uploads/") ? "local" : "external",
@@ -275,7 +277,7 @@ async function replaceRoomMedia(room: Room) {
   }))
   const videoRows = room.media.videoUrls.map((url, index) => ({
     id: makeId("room-video"),
-    roomId: room.id,
+    listingId: room.id,
     type: "video" as const,
     url,
     provider: "external_embed",
@@ -312,6 +314,8 @@ export async function upsertRoom(roomInput: unknown, actorEmail: string) {
   const now = new Date()
   const values = {
     id: room.id,
+    stayType: "short_stay" as const,
+    source: "admin" as const,
     code: room.roomCode,
     name: room.name,
     slug: room.seo.slug,
@@ -619,6 +623,7 @@ export async function searchRoomsForInquiry(query: string) {
     .from(rooms)
     .where(
       and(
+        eq(rooms.stayType, "short_stay"),
         isNull(rooms.deletedAt),
         or(ilike(rooms.name, normalized), ilike(rooms.code, normalized))
       )

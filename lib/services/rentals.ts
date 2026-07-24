@@ -69,9 +69,10 @@ function rowToRental(row: RentalRow, mediaRows: RentalMediaRow[]): RentalListing
     otherRentalType: row.otherRentalType ?? "",
     description: row.description,
     monthlyPrice: numberFromDb(row.monthlyPrice),
-    areaM2: row.areaM2,
+    areaM2: row.areaM2 ?? 0,
     maxOccupants: row.maxOccupants,
-    city: row.city,
+    city: row.legacyProvinceName ?? row.city,
+    newProvince: row.newProvinceName ?? row.provinceCity,
     newWard: row.newWard,
     legacyWard: row.legacyWard,
     legacyDistrict: row.legacyDistrict,
@@ -99,7 +100,7 @@ async function getMediaForListings(ids: string[]) {
   return db
     .select()
     .from(rentalListingMedia)
-    .where(inArray(rentalListingMedia.rentalListingId, ids))
+    .where(inArray(rentalListingMedia.listingId, ids))
     .orderBy(asc(rentalListingMedia.sortOrder))
 }
 
@@ -116,6 +117,7 @@ export async function getPublicRentalListings(): Promise<
       .leftJoin(appUsers, eq(rentalListings.ownerUserId, appUsers.id))
       .where(
         and(
+          eq(rentalListings.stayType, "long_stay"),
           eq(rentalListings.publicationStatus, "published"),
           eq(rentalListings.availabilityStatus, "available"),
           isNull(rentalListings.deletedAt)
@@ -133,7 +135,7 @@ export async function getPublicRentalListings(): Promise<
     return rows.map(({ listing, ownerVerified }) => ({
       ...rowToRental(
         listing,
-        mediaRows.filter((item) => item.rentalListingId === listing.id)
+        mediaRows.filter((item) => item.listingId === listing.id)
       ),
       ownerVerified:
         listing.source === "admin" ? true : Boolean(ownerVerified),
@@ -158,6 +160,7 @@ export async function getPublicRentalByCode(
       .leftJoin(appUsers, eq(rentalListings.ownerUserId, appUsers.id))
       .where(
         and(
+          eq(rentalListings.stayType, "long_stay"),
           eq(rentalListings.code, normalizedCode),
           eq(rentalListings.publicationStatus, "published"),
           isNull(rentalListings.deletedAt)
@@ -189,6 +192,7 @@ export async function listOwnerRentals(ownerUserId: string) {
     .from(rentalListings)
     .where(
       and(
+        eq(rentalListings.stayType, "long_stay"),
         eq(rentalListings.ownerUserId, ownerUserId),
         isNull(rentalListings.deletedAt)
       )
@@ -199,7 +203,7 @@ export async function listOwnerRentals(ownerUserId: string) {
   return rows.map((row) =>
     rowToRental(
       row,
-      mediaRows.filter((item) => item.rentalListingId === row.id)
+      mediaRows.filter((item) => item.listingId === row.id)
     )
   )
 }
@@ -210,6 +214,7 @@ export async function getOwnerRental(ownerUserId: string, id: string) {
     .from(rentalListings)
     .where(
       and(
+        eq(rentalListings.stayType, "long_stay"),
         eq(rentalListings.id, id),
         eq(rentalListings.ownerUserId, ownerUserId),
         isNull(rentalListings.deletedAt)
@@ -241,7 +246,12 @@ export async function listAdminRentals(): Promise<AdminRentalListing[]> {
     .from(rentalListings)
     .leftJoin(appUsers, eq(rentalListings.ownerUserId, appUsers.id))
     .leftJoin(suppliers, eq(rentalListings.supplierId, suppliers.id))
-    .where(isNull(rentalListings.deletedAt))
+    .where(
+      and(
+        eq(rentalListings.stayType, "long_stay"),
+        isNull(rentalListings.deletedAt)
+      )
+    )
     .orderBy(desc(rentalListings.updatedAt))
   const mediaRows = await getMediaForListings(
     rows.map(({ listing }) => listing.id)
@@ -250,7 +260,7 @@ export async function listAdminRentals(): Promise<AdminRentalListing[]> {
   return rows.map((row) => ({
     ...rowToRental(
       row.listing,
-      mediaRows.filter((item) => item.rentalListingId === row.listing.id)
+      mediaRows.filter((item) => item.listingId === row.listing.id)
     ),
     ownerName: row.ownerName ?? row.supplierName ?? "",
     ownerEmail: row.ownerEmail ?? row.supplierEmail ?? "",
@@ -332,6 +342,7 @@ export async function saveRentalListing(
   const now = new Date()
   const id = existing?.id ?? makeId("rental")
   const values = {
+    stayType: "long_stay" as const,
     source,
     ownerUserId: ownerUserId ?? null,
     supplierId: supplierId || null,
@@ -339,18 +350,54 @@ export async function saveRentalListing(
     publicationStatus,
     availabilityStatus: parsed.availabilityStatus,
     rentalType: parsed.rentalType,
+    accommodationTypes: [parsed.rentalType],
     otherRentalType: parsed.otherRentalType,
+    otherAccommodationType: parsed.otherRentalType,
     description: parsed.description,
+    policies: {
+      checkInTime: "",
+      checkOutTime: "",
+      smoking: "not_allowed" as const,
+      pets: "not_allowed" as const,
+      cancellationType: "conditional" as const,
+      cancellationDetail: "",
+      depositRequired: false,
+      depositDetail: "",
+      minimumNights: 1,
+      quietHours: "",
+      otherPolicy: "",
+    },
     monthlyPrice: String(parsed.monthlyPrice),
     areaM2: parsed.areaM2,
     maxOccupants: parsed.maxOccupants,
     city: "TP. Hồ Chí Minh",
+    provinceCity: parsed.city,
+    districtCity: parsed.legacyDistrict,
     newWard: parsed.newWard,
     legacyWard: parsed.legacyWard,
     legacyDistrict: parsed.legacyDistrict,
     addressDetail: parsed.addressDetail,
     googleMapsUrl: parsed.googleMapsUrl || null,
     nearbyPlaces: uniqueStrings(parsed.nearbyPlaces).slice(0, 3),
+    nearbyTags: uniqueStrings(parsed.nearbyPlaces).slice(0, 3),
+    distanceToCenter: "not_declared" as const,
+    supplierPrice: "0",
+    weekdaySupplierPrice: "0",
+    specialSupplierPrice: "0",
+    commissionType: "percentage" as const,
+    commissionValue: "0",
+    referencePrice: "0",
+    weekdayCustomerPrice: "0",
+    specialCustomerPrice: "0",
+    priceUnit: "per_night" as const,
+    weekdayPriceUnit: "per_night" as const,
+    specialPriceUnit: "per_night" as const,
+    weekdayUnitCount: 1,
+    specialUnitCount: 1,
+    weekdayDays: [],
+    smoking: "not_allowed" as const,
+    pets: "not_allowed" as const,
+    cancellationType: "conditional" as const,
     electricityPrice: parsed.electricityPrice,
     waterPrice: parsed.waterPrice,
     otherCosts: parsed.otherCosts,
@@ -383,11 +430,11 @@ export async function saveRentalListing(
 
     await tx
       .delete(rentalListingMedia)
-      .where(eq(rentalListingMedia.rentalListingId, id))
+      .where(eq(rentalListingMedia.listingId, id))
 
     const images = parsed.media.images.map((image, index) => ({
       id: image.id,
-      rentalListingId: id,
+      listingId: id,
       type: "image" as const,
       url: image.url,
       provider: image.url.startsWith("/uploads/") ? "local" : "external",
@@ -397,7 +444,7 @@ export async function saveRentalListing(
     }))
     const videos = parsed.media.videoUrls.map((url, index) => ({
       id: makeId("rental-video"),
-      rentalListingId: id,
+      listingId: id,
       type: "video" as const,
       url,
       provider: "external_embed",
@@ -431,6 +478,7 @@ export async function archiveOwnerRental(ownerUserId: string, id: string) {
     .set({ publicationStatus: "archived", updatedAt: new Date() })
     .where(
       and(
+        eq(rentalListings.stayType, "long_stay"),
         eq(rentalListings.id, id),
         eq(rentalListings.ownerUserId, ownerUserId)
       )

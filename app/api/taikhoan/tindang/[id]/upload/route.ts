@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { requireUserApiSession } from "@/lib/auth/user-api"
-import { getOwnerRental } from "@/lib/services/rentals"
+import { getOwnerListing } from "@/lib/services/listings"
 import { saveRoomImage } from "@/lib/storage/adapter"
 
 export async function POST(
@@ -13,16 +13,16 @@ export async function POST(
   if (!auth.session) return auth.response
 
   const { id } = await params
-  const rental = await getOwnerRental(auth.session.user.id, id)
+  const listing = await getOwnerListing(auth.session.user.id, id)
 
-  if (!rental) {
+  if (!listing) {
     return NextResponse.json(
       { error: "Bạn không có quyền upload ảnh cho tin này." },
       { status: 403 }
     )
   }
 
-  if (rental.media.images.length >= 12) {
+  if (listing.media.images.length >= 12) {
     return NextResponse.json(
       { error: "Mỗi tin được tải tối đa 12 ảnh." },
       { status: 400 }

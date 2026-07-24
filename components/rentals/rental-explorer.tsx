@@ -20,6 +20,7 @@ import {
   MapPinIcon,
   SlidersHorizontalIcon,
   UsersThreeIcon,
+  VideoCameraIcon,
   XIcon,
 } from "@phosphor-icons/react"
 import { toast } from "sonner"
@@ -79,7 +80,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Slider } from "@/components/ui/slider"
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group"
 import { formatCurrency } from "@/lib/format"
+import { getVideoEmbedUrl } from "@/lib/media"
 import { getRentalThumbnail } from "@/lib/rentals/helpers"
 import {
   getRentalAmenityLabel,
@@ -91,9 +97,13 @@ import type { PublicRentalListing } from "@/lib/rentals/types"
 import { cn } from "@/lib/utils"
 
 type SortOption = "newest" | "priceasc" | "pricedesc"
+type LocationSystem = "legacy" | "new"
 
 type RentalFilterState = {
   query: string
+  locationSystem: LocationSystem
+  legacyProvince: string
+  newProvince: string
   selectedDistricts: string[]
   legacyWard: string
   selectedTypes: string[]
@@ -112,6 +122,9 @@ const priceRangeStep = 100_000
 const sortOptions: SortOption[] = ["newest", "priceasc", "pricedesc"]
 const filterParamNames = [
   "q",
+  "locationSystem",
+  "province",
+  "newProvince",
   "district",
   "ward",
   "type",
@@ -137,6 +150,69 @@ function getKnownParam(
 ) {
   const value = params.get(name)?.trim() ?? ""
   return options.includes(value) ? value : "all"
+}
+
+function getKnownParamWithDefault(
+  params: URLSearchParams,
+  name: string,
+  options: string[],
+  fallback: string
+) {
+  const value = params.get(name)?.trim()
+  if (!value) return fallback
+  return value === "all" || options.includes(value) ? value : fallback
+}
+
+function preferredProvince(values: string[]) {
+  return (
+    values.find((value) =>
+      normalizeLocationName(value).includes("ho chi minh")
+    ) ??
+    values[0] ??
+    "all"
+  )
+}
+
+function provinceKey(value: string) {
+  return normalizeLocationName(value)
+    .replace(/^(thanh pho|tp\.?|tinh)\s+/, "")
+    .trim()
+}
+
+function uniqueProvinceNames(values: string[]) {
+  const namesByKey = new Map<string, string>()
+
+  for (const value of values.filter(Boolean)) {
+    const key = provinceKey(value)
+    const current = namesByKey.get(key)
+    const score = value.startsWith("Thành phố")
+      ? 3
+      : value.startsWith("Tỉnh")
+        ? 2
+        : value.startsWith("TP")
+          ? 1
+          : 0
+    const currentScore = current?.startsWith("Thành phố")
+      ? 3
+      : current?.startsWith("Tỉnh")
+        ? 2
+        : current?.startsWith("TP")
+          ? 1
+          : 0
+
+    if (!current || score > currentScore) namesByKey.set(key, value)
+  }
+
+  return uniqueSorted(Array.from(namesByKey.values()))
+}
+
+function normalizeLocationName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
 }
 
 function getKnownValues(
@@ -186,12 +262,18 @@ function getBoundedNumber(
 
 function getRentalFiltersFromSearchParams(
   params: URLSearchParams,
+  legacyProvinces: string[],
+  newProvinces: string[],
   districts: string[],
   wards: string[],
   newWards: string[],
-  priceRangeBounds: [number, number]
+  priceRangeBounds: [number, number],
+  defaultLegacyProvince: string,
+  defaultNewProvince: string
 ): RentalFilterState {
   const sort = params.get("sort") as SortOption | null
+  const locationSystem =
+    params.get("locationSystem") === "new" ? "new" : "legacy"
   const typeValues = rentalTypeOptions.map((option) => option.value)
   const knownAmenities = new Set(
     rentalAmenityOptions.map((option) => option.value as string)
@@ -199,6 +281,19 @@ function getRentalFiltersFromSearchParams(
 
   return {
     query: params.get("q")?.trim() ?? "",
+    locationSystem,
+    legacyProvince: getKnownParamWithDefault(
+      params,
+      "province",
+      legacyProvinces,
+      defaultLegacyProvince
+    ),
+    newProvince: getKnownParamWithDefault(
+      params,
+      "newProvince",
+      newProvinces,
+      defaultNewProvince
+    ),
     selectedDistricts: getKnownValues(params, "district", districts),
     legacyWard: getKnownParam(params, "ward", wards),
     selectedTypes: getKnownValues(params, "type", typeValues),
@@ -238,10 +333,17 @@ function writeRentalFiltersToSearchParams(
   filterParamNames.forEach((name) => params.delete(name))
 
   if (filters.query.trim()) params.set("q", filters.query.trim())
-  filters.selectedDistricts.forEach((district) =>
-    params.append("district", district)
-  )
-  if (filters.legacyWard !== "all") params.set("ward", filters.legacyWard)
+  if (filters.locationSystem === "new") {
+    params.set("locationSystem", "new")
+    params.set("newProvince", filters.newProvince)
+    if (filters.newWard !== "all") params.set("newWard", filters.newWard)
+  } else {
+    params.set("province", filters.legacyProvince)
+    filters.selectedDistricts.forEach((district) =>
+      params.append("district", district)
+    )
+    if (filters.legacyWard !== "all") params.set("ward", filters.legacyWard)
+  }
   filters.selectedTypes.forEach((type) => params.append("type", type))
   if (
     filters.priceRange[0] !== priceRangeBounds[0] ||
@@ -251,7 +353,6 @@ function writeRentalFiltersToSearchParams(
     params.set("maxPrice", String(filters.priceRange[1]))
   }
   if (filters.sort !== "newest") params.set("sort", filters.sort)
-  if (filters.newWard !== "all") params.set("newWard", filters.newWard)
   if (filters.minArea) params.set("minArea", filters.minArea)
   if (filters.minOccupants !== "1") {
     params.set("occupants", filters.minOccupants)
@@ -317,7 +418,17 @@ export function RentalExplorer({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const serializedSearchParams = searchParams.toString()
-  const districts = useMemo(
+  const legacyProvinces = useMemo(
+    () => uniqueProvinceNames(rentals.map((rental) => rental.city)),
+    [rentals]
+  )
+  const newProvinces = useMemo(
+    () => uniqueProvinceNames(rentals.map((rental) => rental.newProvince)),
+    [rentals]
+  )
+  const defaultLegacyProvince = preferredProvince(legacyProvinces)
+  const defaultNewProvince = preferredProvince(newProvinces)
+  const allDistricts = useMemo(
     () => uniqueSorted(rentals.map((rental) => rental.legacyDistrict)),
     [rentals]
   )
@@ -325,7 +436,7 @@ export function RentalExplorer({
     () => uniqueSorted(rentals.map((rental) => rental.legacyWard)),
     [rentals]
   )
-  const newWards = useMemo(
+  const allNewWards = useMemo(
     () => uniqueSorted(rentals.map((rental) => rental.newWard)),
     [rentals]
   )
@@ -335,12 +446,23 @@ export function RentalExplorer({
   )
   const initialFilters = getRentalFiltersFromSearchParams(
     new URLSearchParams(serializedSearchParams),
-    districts,
+    legacyProvinces,
+    newProvinces,
+    allDistricts,
     allLegacyWards,
-    newWards,
-    priceRangeBounds
+    allNewWards,
+    priceRangeBounds,
+    defaultLegacyProvince,
+    defaultNewProvince
   )
   const [query, setQuery] = useState(initialFilters.query)
+  const [locationSystem, setLocationSystem] = useState<LocationSystem>(
+    initialFilters.locationSystem
+  )
+  const [legacyProvince, setLegacyProvince] = useState(
+    initialFilters.legacyProvince
+  )
+  const [newProvince, setNewProvince] = useState(initialFilters.newProvince)
   const [heroDestination, setHeroDestination] = useState(initialFilters.query)
   const [heroDistrict, setHeroDistrict] = useState(
     initialFilters.selectedDistricts[0] ?? "all"
@@ -373,6 +495,9 @@ export function RentalExplorer({
   const filterState = useMemo<RentalFilterState>(
     () => ({
       query,
+      locationSystem,
+      legacyProvince,
+      newProvince,
       selectedDistricts,
       legacyWard,
       selectedTypes,
@@ -385,9 +510,12 @@ export function RentalExplorer({
     }),
     [
       amenities,
+      legacyProvince,
       legacyWard,
+      locationSystem,
       minArea,
       minOccupants,
+      newProvince,
       newWard,
       priceRange,
       query,
@@ -398,18 +526,46 @@ export function RentalExplorer({
   )
   const filterStateRef = useRef(filterState)
   const syncingFromUrlRef = useRef(false)
+  const districts = useMemo(
+    () =>
+      uniqueSorted(
+        rentals
+          .filter(
+            (rental) =>
+              legacyProvince === "all" ||
+              provinceKey(rental.city) === provinceKey(legacyProvince)
+          )
+          .map((rental) => rental.legacyDistrict)
+      ),
+    [legacyProvince, rentals]
+  )
   const legacyWards = useMemo(
     () =>
       uniqueSorted(
         rentals
           .filter(
             (rental) =>
-              selectedDistricts.length === 0 ||
-              selectedDistricts.includes(rental.legacyDistrict)
+              (legacyProvince === "all" ||
+                provinceKey(rental.city) === provinceKey(legacyProvince)) &&
+              (selectedDistricts.length === 0 ||
+                selectedDistricts.includes(rental.legacyDistrict))
           )
           .map((rental) => rental.legacyWard)
       ),
-    [rentals, selectedDistricts]
+    [legacyProvince, rentals, selectedDistricts]
+  )
+  const newWards = useMemo(
+    () =>
+      uniqueSorted(
+        rentals
+          .filter(
+            (rental) =>
+              newProvince === "all" ||
+              provinceKey(rental.newProvince) === provinceKey(newProvince)
+          )
+          .map((rental) => rental.newWard)
+      ),
+    [newProvince, rentals]
   )
 
   useEffect(() => {
@@ -419,10 +575,14 @@ export function RentalExplorer({
   useEffect(() => {
     const nextFilters = getRentalFiltersFromSearchParams(
       new URLSearchParams(serializedSearchParams),
-      districts,
+      legacyProvinces,
+      newProvinces,
+      allDistricts,
       allLegacyWards,
-      newWards,
-      priceRangeBounds
+      allNewWards,
+      priceRangeBounds,
+      defaultLegacyProvince,
+      defaultNewProvince
     )
 
     if (
@@ -434,6 +594,9 @@ export function RentalExplorer({
 
     syncingFromUrlRef.current = true
     setQuery(nextFilters.query)
+    setLocationSystem(nextFilters.locationSystem)
+    setLegacyProvince(nextFilters.legacyProvince)
+    setNewProvince(nextFilters.newProvince)
     setHeroDestination(nextFilters.query)
     setHeroDistrict(nextFilters.selectedDistricts[0] ?? "all")
     setSelectedDistricts(nextFilters.selectedDistricts)
@@ -447,8 +610,12 @@ export function RentalExplorer({
     setAmenities(nextFilters.amenities)
   }, [
     allLegacyWards,
-    districts,
-    newWards,
+    allDistricts,
+    allNewWards,
+    defaultLegacyProvince,
+    defaultNewProvince,
+    legacyProvinces,
+    newProvinces,
     priceRangeBounds,
     serializedSearchParams,
   ])
@@ -461,10 +628,14 @@ export function RentalExplorer({
 
     const currentFilters = getRentalFiltersFromSearchParams(
       new URLSearchParams(serializedSearchParams),
-      districts,
+      legacyProvinces,
+      newProvinces,
+      allDistricts,
       allLegacyWards,
-      newWards,
-      priceRangeBounds
+      allNewWards,
+      priceRangeBounds,
+      defaultLegacyProvince,
+      defaultNewProvince
     )
 
     if (
@@ -485,9 +656,13 @@ export function RentalExplorer({
     )
   }, [
     allLegacyWards,
-    districts,
+    allDistricts,
+    allNewWards,
+    defaultLegacyProvince,
+    defaultNewProvince,
     filterState,
-    newWards,
+    legacyProvinces,
+    newProvinces,
     pathname,
     priceRangeBounds,
     router,
@@ -527,6 +702,8 @@ export function RentalExplorer({
           rental.code,
           rental.name,
           rental.description,
+          rental.city,
+          rental.newProvince,
           rental.newWard,
           rental.legacyWard,
           rental.legacyDistrict,
@@ -536,16 +713,25 @@ export function RentalExplorer({
           .join(" ")
           .toLowerCase()
 
+        const matchesLocation =
+          locationSystem === "legacy"
+            ? (legacyProvince === "all" ||
+                provinceKey(rental.city) === provinceKey(legacyProvince)) &&
+              (selectedDistricts.length === 0 ||
+                selectedDistricts.includes(rental.legacyDistrict)) &&
+              (legacyWard === "all" || rental.legacyWard === legacyWard)
+            : (newProvince === "all" ||
+                provinceKey(rental.newProvince) ===
+                  provinceKey(newProvince)) &&
+              (newWard === "all" || rental.newWard === newWard)
+
         return (
           tokens.every((token) => searchable.includes(token)) &&
-          (selectedDistricts.length === 0 ||
-            selectedDistricts.includes(rental.legacyDistrict)) &&
-          (legacyWard === "all" || rental.legacyWard === legacyWard) &&
+          matchesLocation &&
           (selectedTypes.length === 0 ||
             selectedTypes.includes(rental.rentalType)) &&
           rental.monthlyPrice >= priceRange[0] &&
           rental.monthlyPrice <= priceRange[1] &&
-          (newWard === "all" || rental.newWard === newWard) &&
           (!minArea || rental.areaM2 >= Number(minArea)) &&
           rental.maxOccupants >= Number(minOccupants || 1) &&
           amenities.every((amenity) => rental.amenities.includes(amenity))
@@ -562,9 +748,12 @@ export function RentalExplorer({
       })
   }, [
     amenities,
+    legacyProvince,
     legacyWard,
+    locationSystem,
     minArea,
     minOccupants,
+    newProvince,
     newWard,
     priceRange,
     query,
@@ -585,11 +774,24 @@ export function RentalExplorer({
   )
   const activeFilters = [
     query ? { key: "query", label: query } : null,
-    ...selectedDistricts.map((district) => ({
-      key: `district:${district}`,
-      label: district,
-    })),
-    legacyWard !== "all" ? { key: "ward", label: legacyWard } : null,
+    locationSystem === "new"
+      ? { key: "locationSystem", label: "Địa giới mới" }
+      : null,
+    locationSystem === "legacy" && legacyProvince !== "all"
+      ? { key: "legacyProvince", label: legacyProvince }
+      : null,
+    ...(locationSystem === "legacy"
+      ? selectedDistricts.map((district) => ({
+          key: `district:${district}`,
+          label: district,
+        }))
+      : []),
+    locationSystem === "legacy" && legacyWard !== "all"
+      ? { key: "ward", label: legacyWard }
+      : null,
+    locationSystem === "new" && newProvince !== "all"
+      ? { key: "newProvince", label: newProvince }
+      : null,
     ...selectedTypes.map((type) => ({
       key: `type:${type}`,
       label:
@@ -605,7 +807,9 @@ export function RentalExplorer({
           )}`,
         }
       : null,
-    newWard !== "all" ? { key: "newWard", label: newWard } : null,
+    locationSystem === "new" && newWard !== "all"
+      ? { key: "newWard", label: newWard }
+      : null,
     minArea ? { key: "minArea", label: `Từ ${minArea} m²` } : null,
     minOccupants !== "1"
       ? { key: "occupants", label: `Từ ${minOccupants} người` }
@@ -636,6 +840,9 @@ export function RentalExplorer({
     setQuery("")
     setHeroDestination("")
     setHeroDistrict("all")
+    setLocationSystem("legacy")
+    setLegacyProvince(defaultLegacyProvince)
+    setNewProvince(defaultNewProvince)
     setSelectedDistricts([])
     setLegacyWard("all")
     setSelectedTypes([])
@@ -651,6 +858,17 @@ export function RentalExplorer({
     if (key === "query") {
       setQuery("")
       setHeroDestination("")
+    } else if (key === "locationSystem") {
+      setLocationSystem("legacy")
+      setNewWard("all")
+    } else if (key === "legacyProvince") {
+      setLegacyProvince("all")
+      setSelectedDistricts([])
+      setLegacyWard("all")
+      setHeroDistrict("all")
+    } else if (key === "newProvince") {
+      setNewProvince("all")
+      setNewWard("all")
     } else if (key.startsWith("district:")) {
       const district = key.replace("district:", "")
       setSelectedDistricts((current) =>
@@ -680,6 +898,7 @@ export function RentalExplorer({
   function submitHeroSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setQuery(heroDestination.trim())
+    setLocationSystem("legacy")
     setSelectedDistricts(heroDistrict === "all" ? [] : [heroDistrict])
     setLegacyWard("all")
     window.requestAnimationFrame(() => {
@@ -822,11 +1041,12 @@ export function RentalExplorer({
               onScroll={updateFeaturedControls}
               className="grid snap-x [scrollbar-width:none] auto-cols-[minmax(280px,380px)] grid-flow-col gap-4 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden"
             >
-              {featuredRentals.map((rental) => (
+              {featuredRentals.map((rental, index) => (
                 <RentalCard
                   key={rental.id}
                   rental={rental}
                   onQuickView={() => setSelectedRental(rental)}
+                  preload={index === 0}
                 />
               ))}
             </div>
@@ -880,10 +1100,15 @@ export function RentalExplorer({
                 <RentalFilterPanel
                   amenities={amenities}
                   districts={districts}
+                  legacyProvince={legacyProvince}
+                  legacyProvinces={legacyProvinces}
                   legacyWard={legacyWard}
                   legacyWards={legacyWards}
+                  locationSystem={locationSystem}
                   minArea={minArea}
                   minOccupants={minOccupants}
+                  newProvince={newProvince}
+                  newProvinces={newProvinces}
                   newWard={newWard}
                   newWards={newWards}
                   priceRange={priceRange}
@@ -892,9 +1117,26 @@ export function RentalExplorer({
                   selectedTypes={selectedTypes}
                   onAmenitiesChange={setAmenities}
                   onClear={clearFilters}
+                  onLegacyProvinceChange={(value) => {
+                    setLegacyProvince(value)
+                    setSelectedDistricts([])
+                    setLegacyWard("all")
+                    setHeroDistrict("all")
+                  }}
                   onLegacyWardChange={setLegacyWard}
+                  onLocationSystemChange={(value) => {
+                    setLocationSystem(value)
+                    setSelectedDistricts([])
+                    setLegacyWard("all")
+                    setNewWard("all")
+                    setHeroDistrict("all")
+                  }}
                   onMinAreaChange={setMinArea}
                   onMinOccupantsChange={setMinOccupants}
+                  onNewProvinceChange={(value) => {
+                    setNewProvince(value)
+                    setNewWard("all")
+                  }}
                   onNewWardChange={setNewWard}
                   onPriceRangeChange={setPriceRange}
                   onDistrictToggle={(value) => {
@@ -918,7 +1160,7 @@ export function RentalExplorer({
             </aside>
 
             <div className="min-w-0">
-              <Card className="sticky top-28 z-20 mb-4 bg-card/95 shadow-sm backdrop-blur lg:top-16">
+              <Card className="sticky top-16 z-20 mb-4 bg-card/95 shadow-sm backdrop-blur lg:top-20">
                 <CardContent className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                   <InputGroup>
                     <InputGroupInput
@@ -1089,10 +1331,15 @@ export function RentalExplorer({
               idPrefix="drawer-rental-filter"
               amenities={amenities}
               districts={districts}
+              legacyProvince={legacyProvince}
+              legacyProvinces={legacyProvinces}
               legacyWard={legacyWard}
               legacyWards={legacyWards}
+              locationSystem={locationSystem}
               minArea={minArea}
               minOccupants={minOccupants}
+              newProvince={newProvince}
+              newProvinces={newProvinces}
               newWard={newWard}
               newWards={newWards}
               priceRange={priceRange}
@@ -1103,9 +1350,26 @@ export function RentalExplorer({
               showClearFooter={false}
               onAmenitiesChange={setAmenities}
               onClear={clearFilters}
+              onLegacyProvinceChange={(value) => {
+                setLegacyProvince(value)
+                setSelectedDistricts([])
+                setLegacyWard("all")
+                setHeroDistrict("all")
+              }}
               onLegacyWardChange={setLegacyWard}
+              onLocationSystemChange={(value) => {
+                setLocationSystem(value)
+                setSelectedDistricts([])
+                setLegacyWard("all")
+                setNewWard("all")
+                setHeroDistrict("all")
+              }}
               onMinAreaChange={setMinArea}
               onMinOccupantsChange={setMinOccupants}
+              onNewProvinceChange={(value) => {
+                setNewProvince(value)
+                setNewWard("all")
+              }}
               onNewWardChange={setNewWard}
               onPriceRangeChange={setPriceRange}
               onDistrictToggle={(value) => {
@@ -1154,10 +1418,15 @@ function RentalFilterPanel({
   idPrefix = "rental-filter",
   amenities,
   districts,
+  legacyProvince,
+  legacyProvinces,
   legacyWard,
   legacyWards,
+  locationSystem,
   minArea,
   minOccupants,
+  newProvince,
+  newProvinces,
   newWard,
   newWards,
   priceRange,
@@ -1168,9 +1437,12 @@ function RentalFilterPanel({
   showClearFooter = true,
   onAmenitiesChange,
   onClear,
+  onLegacyProvinceChange,
   onLegacyWardChange,
+  onLocationSystemChange,
   onMinAreaChange,
   onMinOccupantsChange,
+  onNewProvinceChange,
   onNewWardChange,
   onPriceRangeChange,
   onDistrictToggle,
@@ -1182,10 +1454,15 @@ function RentalFilterPanel({
   idPrefix?: string
   amenities: string[]
   districts: string[]
+  legacyProvince: string
+  legacyProvinces: string[]
   legacyWard: string
   legacyWards: string[]
+  locationSystem: LocationSystem
   minArea: string
   minOccupants: string
+  newProvince: string
+  newProvinces: string[]
   newWard: string
   newWards: string[]
   priceRange: [number, number]
@@ -1196,9 +1473,12 @@ function RentalFilterPanel({
   showClearFooter?: boolean
   onAmenitiesChange: (value: string[]) => void
   onClear: () => void
+  onLegacyProvinceChange: (value: string) => void
   onLegacyWardChange: (value: string) => void
+  onLocationSystemChange: (value: LocationSystem) => void
   onMinAreaChange: (value: string) => void
   onMinOccupantsChange: (value: string) => void
+  onNewProvinceChange: (value: string) => void
   onNewWardChange: (value: string) => void
   onPriceRangeChange: (value: [number, number]) => void
   onDistrictToggle: (value: string) => void
@@ -1235,8 +1515,91 @@ function RentalFilterPanel({
         )}
       >
         <CardContent className="flex flex-col gap-5 pb-4">
+          <FieldSet>
+            <FieldLegend className={showAllOptions ? undefined : "sr-only"}>
+              Địa điểm
+            </FieldLegend>
+            <ToggleGroup
+              type="single"
+              value={locationSystem}
+              onValueChange={(value) => {
+                if (value === "legacy" || value === "new") {
+                  onLocationSystemChange(value)
+                }
+              }}
+              variant="outline"
+              spacing={0}
+              className="grid w-full grid-cols-2 pt-2"
+              aria-label="Chọn hệ thống địa giới"
+            >
+              <ToggleGroupItem value="legacy">Địa giới cũ</ToggleGroupItem>
+              <ToggleGroupItem value="new">Địa giới mới</ToggleGroupItem>
+            </ToggleGroup>
+          </FieldSet>
+
+          {locationSystem === "legacy" ? (
+            <>
+              <FilterSelect
+                id={`${idPrefix}-legacy-province`}
+                label="Tỉnh/Thành phố cũ"
+                value={legacyProvince}
+                options={legacyProvinces.map((value) => ({
+                  value,
+                  label: value,
+                }))}
+                onChange={onLegacyProvinceChange}
+              />
+              <RentalFilterOptionGroup
+                defaultVisible={3}
+                expanded={showAllOptions}
+                hideExpandedToggle={showAllOptions}
+                id={`${idPrefix}-district`}
+                onExpandedChange={onShowMore}
+                onToggle={onDistrictToggle}
+                options={districts.map((value) => ({ value, label: value }))}
+                selectedValues={selectedDistricts}
+                title="Quận/huyện cũ"
+              />
+              {showAllOptions ? (
+                <FilterSelect
+                  id={`${idPrefix}-legacy-ward`}
+                  label="Phường/xã cũ"
+                  value={legacyWard}
+                  options={legacyWards.map((value) => ({
+                    value,
+                    label: value,
+                  }))}
+                  onChange={onLegacyWardChange}
+                />
+              ) : null}
+            </>
+          ) : (
+            <FieldGroup>
+              <FilterSelect
+                id={`${idPrefix}-new-province`}
+                label="Tỉnh/Thành phố mới"
+                value={newProvince}
+                options={newProvinces.map((value) => ({
+                  value,
+                  label: value,
+                }))}
+                onChange={onNewProvinceChange}
+              />
+              <FilterSelect
+                id={`${idPrefix}-new-ward`}
+                label="Phường/xã mới"
+                value={newWard}
+                options={newWards.map((value) => ({
+                  value,
+                  label: value,
+                }))}
+                onChange={onNewWardChange}
+              />
+            </FieldGroup>
+          )}
+
           <RentalFilterOptionGroup
-            defaultVisible={5}
+            defaultVisible={3}
             expanded={showAllOptions}
             hideExpandedToggle={showAllOptions}
             id={`${idPrefix}-type`}
@@ -1245,17 +1608,6 @@ function RentalFilterPanel({
             options={rentalTypeOptions}
             selectedValues={selectedTypes}
             title="Loại hình"
-          />
-          <RentalFilterOptionGroup
-            defaultVisible={3}
-            expanded={showAllOptions}
-            hideExpandedToggle={showAllOptions}
-            id={`${idPrefix}-district`}
-            onExpandedChange={onShowMore}
-            onToggle={onDistrictToggle}
-            options={districts.map((value) => ({ value, label: value }))}
-            selectedValues={selectedDistricts}
-            title="Quận/huyện cũ"
           />
           <FieldSet>
             <FieldLegend>Mức giá</FieldLegend>
@@ -1278,47 +1630,38 @@ function RentalFilterPanel({
               </div>
             </div>
           </FieldSet>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor={`${idPrefix}-occupants`}>
-                Số người tối thiểu
-              </FieldLabel>
-              <Select value={minOccupants} onValueChange={onMinOccupantsChange}>
-                <SelectTrigger id={`${idPrefix}-occupants`} className="w-full">
-                  <SelectValue placeholder="Số người" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {["1", "2", "3", "4", "5", "6"].map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {value} người
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-          </FieldGroup>
+          {showAllOptions ? (
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor={`${idPrefix}-occupants`}>
+                  Số người tối thiểu
+                </FieldLabel>
+                <Select
+                  value={minOccupants}
+                  onValueChange={onMinOccupantsChange}
+                >
+                  <SelectTrigger
+                    id={`${idPrefix}-occupants`}
+                    className="w-full"
+                  >
+                    <SelectValue placeholder="Số người" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {["1", "2", "3", "4", "5", "6"].map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {value} người
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </FieldGroup>
+          ) : null}
           {showAllOptions ? (
             <>
               <FieldGroup>
-                <FilterSelect
-                  id={`${idPrefix}-legacy-ward`}
-                  label="Phường/xã cũ"
-                  value={legacyWard}
-                  options={legacyWards.map((value) => ({
-                    value,
-                    label: value,
-                  }))}
-                  onChange={onLegacyWardChange}
-                />
-                <FilterSelect
-                  id={`${idPrefix}-new-ward`}
-                  label="Phường/xã hiện nay"
-                  value={newWard}
-                  options={newWards.map((value) => ({ value, label: value }))}
-                  onChange={onNewWardChange}
-                />
                 <Field>
                   <FieldLabel htmlFor={`${idPrefix}-area`}>
                     Diện tích tối thiểu
@@ -1463,9 +1806,11 @@ function RentalFilterOptionGroup({
 function RentalCard({
   rental,
   onQuickView,
+  preload = false,
 }: {
   rental: PublicRentalListing
   onQuickView: () => void
+  preload?: boolean
 }) {
   const thumbnail = getRentalThumbnail(rental)
   const [copiedCode, setCopiedCode] = useState(false)
@@ -1483,14 +1828,19 @@ function RentalCard({
   }
 
   return (
-    <Card size="sm" className="pt-0">
-      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-        <Link href={detailHref} aria-label={`Xem ${rental.name}`}>
+    <Card size="sm" className="h-full pt-0">
+      <div className="relative h-56 overflow-hidden bg-muted">
+        <Link
+          href={detailHref}
+          aria-label={`Xem ${rental.name}`}
+          className="relative block h-full"
+        >
           {thumbnail ? (
             <Image
               src={thumbnail.url}
               alt={thumbnail.caption || rental.name}
               fill
+              preload={preload}
               className="object-cover transition-transform duration-300 hover:scale-[1.03]"
               sizes="(min-width: 1280px) 30vw, (min-width: 768px) 50vw, 100vw"
             />
@@ -1538,9 +1888,9 @@ function RentalCard({
           </CardAction>
         ) : null}
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex flex-1 flex-col gap-3">
         <p className="line-clamp-1 text-xs text-muted-foreground">
-          Hiện nay: {rental.newWard}, TP.HCM
+          Hiện nay: {rental.newWard}, {rental.newProvince}
         </p>
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
@@ -1553,23 +1903,23 @@ function RentalCard({
           </span>
         </div>
       </CardContent>
-      <CardFooter className="flex-wrap justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
+      <CardFooter className="mt-auto flex-col items-stretch gap-3">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Giá thuê</span>
           <span className="text-base font-semibold">
             {formatCurrency(rental.monthlyPrice)}/tháng
           </span>
         </div>
-        <div className="flex flex-wrap gap-2 max-sm:w-full">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
             variant="outline"
-            className="max-sm:h-10 max-sm:flex-1"
+            className="w-full"
             onClick={onQuickView}
           >
             Xem nhanh
           </Button>
-          <Button asChild className="max-sm:h-10 max-sm:flex-1">
+          <Button asChild className="w-full">
             <Link href={detailHref}>
               Chi tiết
               <ArrowRightIcon data-icon="inline-end" />
@@ -1589,6 +1939,7 @@ function RentalQuickView({
   onOpenChange: (open: boolean) => void
 }) {
   const thumbnail = rental ? getRentalThumbnail(rental) : null
+  const videoOptions = rental?.media.videoUrls ?? []
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null)
   const activeImage =
     rental?.media.images.find((image) => image.url === activeImageUrl) ??
@@ -1664,6 +2015,52 @@ function RentalQuickView({
                             />
                           </button>
                         ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {videoOptions.length > 0 ? (
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <VideoCameraIcon className="size-4 text-primary" />
+                        Video
+                      </div>
+                      <div className="max-w-full overflow-x-auto overflow-y-hidden pb-1">
+                        <div className="flex min-w-full gap-2">
+                          {videoOptions.map((videoUrl) => {
+                            const embedUrl = getVideoEmbedUrl(videoUrl)
+
+                            return (
+                              <div
+                                key={videoUrl}
+                                className="aspect-video w-72 shrink-0 overflow-hidden bg-muted"
+                              >
+                                {embedUrl ? (
+                                  <iframe
+                                    src={embedUrl}
+                                    title={`Video ${rental.name}`}
+                                    className="h-full w-full"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    allowFullScreen
+                                    loading="lazy"
+                                    referrerPolicy="strict-origin-when-cross-origin"
+                                  />
+                                ) : (
+                                  <div className="flex size-full items-center justify-center">
+                                    <Button asChild variant="secondary">
+                                      <a
+                                        href={videoUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        Mở video
+                                      </a>
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
                   ) : null}

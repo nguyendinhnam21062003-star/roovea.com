@@ -307,7 +307,7 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
               <CardHeader>
                 <CardTitle>Video phòng</CardTitle>
                 <CardDescription>
-                  Video nhúng được khai báo cho phòng.
+                  Xem không gian thực tế của phòng trước khi lựa chọn.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
